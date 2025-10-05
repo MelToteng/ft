@@ -1,9 +1,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Transaction, GeminiInsightData } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export async function getFinancialInsight(transactions: Transaction[]): Promise<GeminiInsightData> {
+
+  if(!process.env.API_KEY) {
+    console.log("Ai not activated");
+    return;
+  }
+
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
   const simplifiedTransactions = transactions.map(({ type, amount, category, date }) => ({
     type,
     amount,
