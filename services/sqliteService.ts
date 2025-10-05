@@ -10,7 +10,6 @@ async function loadDbFromIndexedDB(): Promise<Uint8Array | null> {
     const request = indexedDB.open("sqljs-database");
 
     request.onupgradeneeded = () => {
-        console.log("Upgrading IndexedDB in loadDB...");
       const db = request.result;
       if (!db.objectStoreNames.contains(DB_NAME)) {
         db.createObjectStore(DB_NAME);
@@ -42,7 +41,6 @@ async function saveDbToIndexedDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open("sqljs-database", 1);
     request.onupgradeneeded = () => {
-        console.log("Upgrading IndexedDB in saveDB...");
       const db = request.result;
       if (!db.objectStoreNames.contains(DB_NAME)) {
         db.createObjectStore(DB_NAME);
