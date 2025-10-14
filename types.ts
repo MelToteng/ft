@@ -5,21 +5,25 @@ export interface Transaction {
   type: TransactionType;
   description: string;
   amount: number;
-  date: string; // YYY-MM-DD
+  date: string; // YYYY-MM-DD
   category: string;
 }
 
-export type BudgetPeriod = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+// New: A budget period with a custom name and date range.
+export interface BudgetPeriod {
+  id: number;
+  name: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+}
 
-export interface Budget {
+export interface BudgetItem {
+  id?: number;
+  budgetPeriodId: number; // Links to a BudgetPeriod
+  category: string;
   amount: number;
-  period: BudgetPeriod;
-  startDay?: number; // e.g., 15 for the 15th of the month, or 1 for Monday
 }
 
-export interface Budgets {
-  [category: string]: Budget;
-}
 
 export interface GeminiInsightData {
   summary: string;
