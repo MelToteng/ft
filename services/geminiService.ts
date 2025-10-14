@@ -1,10 +1,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Transaction, GeminiInsightData } from '../types';
 
-// FIX: Per coding guidelines, the Gemini client is initialized directly using an environment variable.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
 export async function getFinancialInsight(transactions: Transaction[]): Promise<GeminiInsightData> {
+
+  
+  if(process.env.API_KEY === undefined) {
+    return;
+  }
+  
+  // FIX: Per coding guidelines, the Gemini client is initialized directly using an environment variable.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+
   // FIX: The check for `ai` initialization is removed as it's now handled at the module level.
   const simplifiedTransactions = transactions.map(({ type, amount, category, date }) => ({
     type,
