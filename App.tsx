@@ -521,6 +521,34 @@ export default function App() {
                         });
                     })()}
                     </div>
+                    {(()=>{
+                        const periodStart = new Date(budgetDisplayPeriod.startDate + 'T00:00:00');
+                        const periodEnd = new Date(budgetDisplayPeriod.endDate + 'T23:59:59');
+
+                        const totalSpent = transactions
+                            .filter(t => t.type === 'expense')
+                            .filter(t => {
+                                const transactionDate = new Date(t.date + 'T00:00:00');
+                                return transactionDate >= periodStart && transactionDate <= periodEnd;
+                            })
+                            .reduce((sum, t) => sum + t.amount, 0);
+
+                        const totalBudgeted = budgets
+                            .filter(b => b.budgetPeriodId === budgetDisplayPeriod.id)
+                            .reduce((sum, b) => sum + b.amount, 0);
+
+                        const percentage = totalBudgeted > 0 ? Math.min((totalSpent / totalBudgeted) * 100, 100) : 0;
+
+
+                        const progressClass = totalSpent >= totalBudgeted ? 'text-red-500' : percentage > 70 ? 'text-amber-500' : 'text-green-500';
+
+                        return (<div className="mt-4 border-t border-border pt-4">
+                            <div className="flex justify-between text-sm mb-1">
+                                      <span className="font-semibold">Totals</span>
+                                      <span className={`${progressClass} text-text-muted`}>{formatCurrency(totalSpent)} / {formatCurrency(totalBudgeted)}</span>
+                                  </div>
+                        </div>);
+                    })()}                    
                 </div>
 
                 <div className="bg-surface/50 backdrop-blur-xl p-6 rounded-4xl border border-border h-96">
@@ -1036,11 +1064,12 @@ const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({ onClose, bu
                                     </div>
                                 ))}
                             </div>
+                            
                             <div className="flex gap-2 border-t border-border-light pt-4">
                                 <FormInput label="" id="customCategory" value={customCategory} onChange={e => setCustomCategory(e.target.value)} placeholder="Add new category..." className="!mb-0 flex-grow"/>
+                                
                                 <Button type="button" variant="secondary" onClick={handleAddCustomCategory} className="!py-2">Add</Button>
                             </div>
-
                              <div className="flex justify-between items-center mt-6">
                                 {activePeriodId !== 'new' ? (
                                     <Button variant="danger" onClick={() => handleDelete(activePeriodId as number)} className="!py-2"><Icons.Trash /> Delete Period</Button>
