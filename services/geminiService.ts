@@ -4,15 +4,13 @@ import { Transaction, GeminiInsightData } from '../types';
 
 export async function getFinancialInsight(transactions: Transaction[]): Promise<GeminiInsightData> {
 
-  
-  if(process.env.API_KEY === undefined) {
-    return;
+  const apiKey = import.meta.env.VITE_API_KEY;
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please set VITE_API_KEY in your environment.");
   }
-  
-  // FIX: Per coding guidelines, the Gemini client is initialized directly using an environment variable.
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
-  // FIX: The check for `ai` initialization is removed as it's now handled at the module level.
+  const ai = new GoogleGenAI({ apiKey });
+
   const simplifiedTransactions = transactions.map(({ type, amount, category, date }) => ({
     type,
     amount,
@@ -69,7 +67,7 @@ export async function getFinancialInsight(transactions: Transaction[]): Promise<
     console.error("Error fetching financial insight from Gemini:", error);
     // Rethrow to be handled by the UI
     if (error instanceof Error) {
-        throw new Error(`Failed to get financial insight: ${error.message}`);
+      throw new Error(`Failed to get financial insight: ${error.message}`);
     }
     throw new Error("Failed to get financial insight due to an unknown error.");
   }
