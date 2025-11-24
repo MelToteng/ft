@@ -1,95 +1,53 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Transaction, TransactionType, BudgetItem, BudgetPeriod, GeminiInsightData, Notification } from './types';
+import { Transaction, TransactionType, BudgetItem, BudgetPeriod, GeminiInsightData, Notification, RecurringTransaction, CustomCategory } from './types';
 import { getFinancialInsight } from './services/geminiService';
 import { Modal } from './components/ui';
-import { initDb, getTransactions, addTransaction, deleteTransaction, getBudgets, getBudgetPeriods, addBudgetPeriod, updateBudgetPeriod, deleteBudgetPeriod, saveBudgets, getSetting, setSetting, seedWithMockData } from './services/sqliteService';
-
-// Components
+import { supabase } from './services/supabaseClient';
+import { Session } from '@supabase/supabase-js';
+import {
+    getTransactions,
+    addTransaction,
+    deleteTransaction,
+    getBudgets,
+    saveBudgets,
+    getBudgetPeriods,
+    addBudgetPeriod,
+    updateBudgetPeriod,
+    deleteBudgetPeriod,
+    getSetting,
+    setSetting,
+    getRecurringTransactions,
+    addRecurringTransaction,
+    getCustomCategories,
+} from './services/supabaseService';
 import { BackgroundShapes } from './components/layout/BackgroundShapes';
-import { TransactionFormModal } from './components/transactions/TransactionFormModal';
+import { Header } from './components/layout/Header';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { BudgetManagementView } from './components/budget/BudgetManagementView';
 import { AllTransactionsView } from './components/transactions/AllTransactionsView';
-
-// --- MOCK DATA ---
-const createMockData = () => {
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth();
-    const formatDate = (date: Date) => date.toISOString().slice(0, 10);
-    const d = (monthOffset: number, day: number) => formatDate(new Date(currentYear, currentMonth + monthOffset, day));
-
-    const mockBudgetPeriods: BudgetPeriod[] = [
-        { id: 1, name: 'Current Month', startDate: d(0, 1), endDate: d(1, 0) },
-        { id: 2, name: 'Last Month', startDate: d(-1, 1), endDate: d(0, 0) },
-        { id: 3, name: 'Next Month', startDate: d(1, 1), endDate: d(2, 0) },
-        { id: 4, name: 'Summer Vacation', startDate: d(1, 15), endDate: d(1, 25) },
-    ];
-
-    const mockBudgets: BudgetItem[] = [
-        // Current Month
-        { id: 101, budgetPeriodId: 1, category: 'Groceries', amount: 500 },
-        { id: 102, budgetPeriodId: 1, category: 'Transport', amount: 150 },
-        { id: 103, budgetPeriodId: 1, category: 'Eating Out', amount: 200 },
-        { id: 104, budgetPeriodId: 1, category: 'Utilities', amount: 250 },
-        { id: 105, budgetPeriodId: 1, category: 'Shopping', amount: 300 },
-        // Last Month
-        { id: 201, budgetPeriodId: 2, category: 'Groceries', amount: 480 },
-        { id: 202, budgetPeriodId: 2, category: 'Utilities', amount: 240 },
-        { id: 203, budgetPeriodId: 2, category: 'Entertainment', amount: 100 },
-        // Next Month (planning)
-        { id: 301, budgetPeriodId: 3, category: 'Groceries', amount: 520 },
-        { id: 302, budgetPeriodId: 3, category: 'Shopping', amount: 150 },
-        { id: 303, budgetPeriodId: 3, category: 'Travel', amount: 800 },
-        // Summer Vacation
-        { id: 401, budgetPeriodId: 4, category: 'Travel', amount: 750 },
-        { id: 402, budgetPeriodId: 4, category: 'Eating Out', amount: 400 },
-        { id: 403, budgetPeriodId: 4, category: 'Entertainment', amount: 250 },
-    ];
-
-    const mockTransactions: Transaction[] = ([
-        // Last Month's Data
-        { id: 10, type: 'income', description: 'Salary (Last Month)', amount: 4000, date: d(-1, 2), category: 'Income' },
-        { id: 11, type: 'income', description: 'Freelance Project', amount: 750, date: d(-1, 15), category: 'Income' },
-        { id: 12, type: 'expense', description: 'Groceries', amount: 115.20, date: d(-1, 5), category: 'Groceries' },
-        { id: 13, type: 'expense', description: 'Internet Bill', amount: 60.00, date: d(-1, 10), category: 'Utilities' },
-        { id: 14, type: 'expense', description: 'Concert Tickets', amount: 95.00, date: d(-1, 20), category: 'Entertainment' },
-        { id: 15, type: 'expense', description: 'New headphones', amount: 180.00, date: d(-1, 22), category: 'Shopping' },
-        { id: 16, type: 'expense', description: 'Train pass', amount: 80.00, date: d(-1, 3), category: 'Transport' },
-        { id: 17, type: 'expense', description: 'Dinner', amount: 65.00, date: d(-1, 12), category: 'Eating Out' },
-
-        // Current Month's Data
-        { id: 1, type: 'income', description: 'Salary', amount: 4000, date: d(0, 2), category: 'Income' },
-        { id: 21, type: 'income', description: 'Stock Dividend', amount: 120, date: d(0, 18), category: 'Income' },
-        { id: 2, type: 'expense', description: 'Weekly Groceries', amount: 120.50, date: d(0, 3), category: 'Groceries' },
-        { id: 3, type: 'expense', description: 'Gasoline', amount: 45.00, date: d(0, 4), category: 'Transport' },
-        { id: 4, type: 'expense', description: 'Electricity Bill', amount: 85.75, date: d(0, 5), category: 'Utilities' },
-        { id: 5, type: 'expense', description: 'Dinner with friends', amount: 78.30, date: d(0, 6), category: 'Eating Out' },
-        { id: 6, type: 'expense', description: 'Netflix Subscription', amount: 15.99, date: d(0, 10), category: 'Subscriptions' },
-        { id: 7, type: 'expense', description: 'Birthday Gift', amount: 50.00, date: d(0, 12), category: 'Gifts' },
-        { id: 8, type: 'expense', description: 'Coffee run', amount: 8.50, date: d(0, 15), category: 'Eating Out' },
-        { id: 9, type: 'expense', description: 'More groceries', amount: 95.00, date: d(0, 16), category: 'Groceries' },
-        { id: 22, type: 'expense', description: 'New jacket', amount: 125.00, date: d(0, 19), category: 'Shopping' },
-    ] as Transaction[]).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    return { mockTransactions, mockBudgets, mockBudgetPeriods };
-};
+import { TransactionFormModal } from './components/transactions/TransactionFormModal';
+import { RecurringTransactionModal } from './components/transactions/RecurringTransactionModal';
+import { ImportExportModal } from './components/transactions/ImportExportModal';
+import { CategoryManagement } from './components/settings/CategoryManagement';
+import { Auth } from './components/Auth';
 
 // --- CONSTANTS ---
 const DEFAULT_EXPENSE_CATEGORIES = ['Housing', 'Groceries', 'Transport', 'Utilities', 'Eating Out', 'Entertainment', 'Shopping', 'Health', 'Personal Care', 'Subscriptions', 'Gifts', 'Travel', 'Other'];
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
+    const [session, setSession] = useState<Session | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [budgets, setBudgets] = useState<BudgetItem[]>([]);
     const [budgetPeriods, setBudgetPeriods] = useState<BudgetPeriod[]>([]);
+    const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
+    const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
     const [activeModal, setActiveModal] = useState<string | null>(null);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [insight, setInsight] = useState<GeminiInsightData | null>(null);
     const [isInsightLoading, setIsInsightLoading] = useState(false);
     const [insightError, setInsightError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [isSeeding, setIsSeeding] = useState(false);
     const [view, setView] = useState<'dashboard' | 'budgets' | 'transactions'>('dashboard');
     const [dashboardPeriodFilter, setDashboardPeriodFilter] = useState<number | 'all'>('all');
     const [isBalanceTrendModalOpen, setIsBalanceTrendModalOpen] = useState(false);
@@ -103,6 +61,21 @@ export default function App() {
         }, 3000);
     }, []);
 
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            setIsLoading(false);
+        });
+
+        const {
+            data: { subscription },
+        } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
     const formatCurrency = useCallback((value: number) => {
         try {
             return new Intl.NumberFormat('en-US', {
@@ -110,7 +83,6 @@ export default function App() {
                 currency: currency,
             }).format(value);
         } catch (e) {
-            // Fallback for invalid currency code
             return new Intl.NumberFormat('en-US', {
                 style: 'currency',
                 currency: 'USD',
@@ -119,24 +91,29 @@ export default function App() {
     }, [currency]);
 
     const loadData = useCallback(async () => {
+        if (!session) return;
         try {
-            const [loadedTransactions, loadedBudgets, loadedPeriods, savedCurrency] = await Promise.all([
+            const [loadedTransactions, loadedBudgets, loadedPeriods, savedCurrency, loadedRecurring, loadedCategories] = await Promise.all([
                 getTransactions(),
                 getBudgets(),
                 getBudgetPeriods(),
                 getSetting('currency'),
+                getRecurringTransactions(),
+                getCustomCategories(),
             ]);
 
             setTransactions(loadedTransactions);
             setBudgets(loadedBudgets);
             setBudgetPeriods(loadedPeriods);
+            setRecurringTransactions(loadedRecurring);
+            setCustomCategories(loadedCategories);
             if (savedCurrency) setCurrency(savedCurrency);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error loading data:", error);
-            addNotification("Could not load data.", "error");
+            addNotification(`Could not load data: ${error.message}`, "error");
         }
-    }, [addNotification]);
+    }, [session, addNotification]);
 
     const handleSetCurrency = async (newCurrency: string) => {
         setCurrency(newCurrency);
@@ -145,39 +122,11 @@ export default function App() {
     };
 
     useEffect(() => {
-        const initializeApp = async () => {
-            setIsLoading(true);
-            try {
-                await initDb();
-                await loadData();
-            } catch (error) {
-                console.error("Initialization error:", error);
-                addNotification("Failed to initialize the app.", "error");
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        initializeApp();
-    }, [loadData]);
-
-    const handleSeedData = async () => {
-        if (!window.confirm('This will add sample transactions and budgets to your existing data. Are you sure you want to continue?')) {
-            return;
+        if (session) {
+            loadData();
         }
-        setIsSeeding(true);
-        try {
-            await seedWithMockData(createMockData());
-            addNotification('Demo data added successfully!', 'success');
-            await loadData();
-        } catch (e) {
-            addNotification('Failed to add demo data.', 'error');
-        } finally {
-            setIsSeeding(false);
-        }
-    };
+    }, [session, loadData]);
 
-
-    // Transactions filtered for the dashboard view (stats, charts)
     const dashboardTransactions = useMemo(() => {
         if (dashboardPeriodFilter === 'all') {
             return transactions;
@@ -193,7 +142,6 @@ export default function App() {
             return transactionDate >= periodStart && transactionDate <= periodEnd;
         });
     }, [transactions, budgetPeriods, dashboardPeriodFilter]);
-
 
     const { periodIncome, periodExpenses, periodNet } = useMemo(() => {
         const income = dashboardTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
@@ -222,11 +170,13 @@ export default function App() {
         return `${Math.floor(totalBalance / avgDailyExpense)} days`;
     }, [transactions, totalBalance]);
 
-    const handleAddTransaction = async (transaction: Omit<Transaction, 'id'>) => {
+    const handleAddTransaction = async (transaction: Omit<Transaction, 'id'>, shouldClose: boolean = true) => {
         try {
             const newTransaction = await addTransaction(transaction);
             setTransactions(prev => [newTransaction, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-            setActiveModal(null);
+            if (shouldClose) {
+                setActiveModal(null);
+            }
             addNotification(`${transaction.type === 'income' ? 'Income' : 'Expense'} added successfully!`, 'success');
         } catch (error: any) {
             addNotification(error.message, 'error');
@@ -254,13 +204,24 @@ export default function App() {
             await saveBudgets(period.id, budgetsToSave);
         }
         addNotification('Budget period saved to database!', 'success');
-        await loadData(); // Reload from DB
+        await loadData();
     };
 
     const handleDeletePeriod = async (id: number) => {
         await deleteBudgetPeriod(id);
         addNotification('Budget period deleted from database.', 'info');
         await loadData();
+    };
+
+    const handleSaveRecurring = async (transaction: Omit<RecurringTransaction, 'id'>) => {
+        try {
+            await addRecurringTransaction(transaction);
+            await loadData();
+            setActiveModal(null);
+            addNotification('Recurring transaction saved!', 'success');
+        } catch (error: any) {
+            addNotification(error.message, 'error');
+        }
     };
 
     const startingBalance = useMemo(() => {
@@ -291,7 +252,7 @@ export default function App() {
             };
         });
         return [{ date: 'Start', balance: startingBalance }, ...data];
-    }, [dashboardTransactions, startingBalance]);
+    }, [dashboardTransactions, startingBalance, dashboardPeriodFilter]);
 
     const spendingByCategory = useMemo(() => {
         const expenses = dashboardTransactions.filter(t => t.type === 'expense');
@@ -337,19 +298,25 @@ export default function App() {
         const categories = new Set(DEFAULT_EXPENSE_CATEGORIES);
         transactions.filter(t => t.type === 'expense').forEach(t => categories.add(t.category));
         budgets.forEach(b => categories.add(b.category));
+        customCategories.filter(c => c.type === 'expense').forEach(c => categories.add(c.name));
         return Array.from(categories).sort();
-    }, [transactions, budgets]);
+    }, [transactions, budgets, customCategories]);
+
+    const activeBudgetCategories = useMemo(() => {
+        const categories = new Set<string>();
+        budgets.forEach(b => categories.add(b.category));
+        categories.add('Other');
+        return Array.from(categories).sort();
+    }, [budgets]);
 
     const budgetDisplayPeriodId = useMemo(() => {
         if (typeof dashboardPeriodFilter === 'number') {
             return dashboardPeriodFilter;
         }
-        // When 'all' is selected, find the current period or fallback to most recent
         if (budgetPeriods.length > 0) {
             const today = new Date().toISOString().slice(0, 10);
             const currentPeriod = budgetPeriods.find(p => p.startDate <= today && p.endDate >= today);
             if (currentPeriod) return currentPeriod.id;
-            // Fallback to the most recent period based on start date
             const sortedPeriods = [...budgetPeriods].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
             return sortedPeriods[0].id;
         }
@@ -361,25 +328,59 @@ export default function App() {
         return budgetPeriods.find(p => p.id === budgetDisplayPeriodId);
     }, [budgetDisplayPeriodId, budgetPeriods]);
 
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        setSession(null);
+        setTransactions([]);
+        setBudgets([]);
+        setBudgetPeriods([]);
+        setRecurringTransactions([]);
+        setCustomCategories([]);
+        setNotifications([]);
+        setInsight(null);
+        setView('dashboard');
+    };
+
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-background">
+            <div className="min-h-screen bg-background text-text-primary flex items-center justify-center">
                 <div className="text-center">
-                    <h1 className="text-3xl font-bold text-primary-light mb-2">Loading Your Financials...</h1>
-                    <p className="text-text-secondary">Please wait a moment.</p>
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-text-secondary">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!session) {
+        return (
+            <div className="min-h-screen bg-background text-text-primary relative overflow-hidden">
+                <BackgroundShapes />
+                <div className="relative z-10">
+                    <Auth />
                 </div>
             </div>
         );
     }
 
     return (
-        <>
+        <div className="min-h-screen bg-background text-text-primary relative overflow-hidden">
             <BackgroundShapes />
-            <div className="container mx-auto px-4 sm:px-6 lg:px-8 min-h-screen relative z-10">
 
-                {view === 'dashboard' ? (
+            <div className="relative z-10 container mx-auto px-4 py-8 max-w-7xl">
+                <Header
+                    onSignOut={handleSignOut}
+                    onRecurring={() => setActiveModal('recurring')}
+                    onImportExport={() => setActiveModal('import-export')}
+                    onCategories={() => setActiveModal('categories')}
+                    onGetInsight={handleGetInsight}
+                    onViewAllTransactions={() => setView('transactions')}
+                    isInsightLoading={isInsightLoading}
+                />
+
+                {view === 'dashboard' && (
                     <DashboardView
-                        transactions={transactions}
+                        transactions={dashboardTransactions}
                         budgets={budgets}
                         budgetPeriods={budgetPeriods}
                         dashboardPeriodFilter={dashboardPeriodFilter}
@@ -393,8 +394,6 @@ export default function App() {
                         formatCurrency={formatCurrency}
                         setActiveModal={setActiveModal}
                         setView={setView}
-                        handleGetInsight={handleGetInsight}
-                        isInsightLoading={isInsightLoading}
                         handleDeleteTransaction={handleDeleteTransaction}
                         isBalanceTrendModalOpen={isBalanceTrendModalOpen}
                         setIsBalanceTrendModalOpen={setIsBalanceTrendModalOpen}
@@ -402,17 +401,21 @@ export default function App() {
                         spendingByCategory={spendingByCategory}
                         budgetDisplayPeriod={budgetDisplayPeriod}
                     />
-                ) : view === 'budgets' ? (
+                )}
+
+                {view === 'budgets' && (
                     <BudgetManagementView
                         onClose={() => setView('dashboard')}
                         budgetPeriods={budgetPeriods}
                         budgets={budgets}
                         allCategories={allExpenseCategories}
+                        addNotification={addNotification}
                         onSavePeriod={handleSavePeriod}
                         onDeletePeriod={handleDeletePeriod}
-                        addNotification={addNotification}
                     />
-                ) : (
+                )}
+
+                {view === 'transactions' && (
                     <AllTransactionsView
                         onClose={() => setView('dashboard')}
                         transactions={transactions}
@@ -427,13 +430,33 @@ export default function App() {
             <TransactionFormModal
                 isOpen={activeModal === 'income' || activeModal === 'expense'}
                 onClose={() => setActiveModal(null)}
-                type={activeModal as TransactionType}
+                type={activeModal === 'income' ? 'income' : activeModal === 'expense' ? 'expense' : null}
                 onSubmit={handleAddTransaction}
+                expenseCategories={activeBudgetCategories}
+                customCategories={customCategories}
+            />
+
+            <RecurringTransactionModal
+                isOpen={activeModal === 'recurring'}
+                onClose={() => setActiveModal(null)}
+                onSave={handleSaveRecurring}
                 expenseCategories={allExpenseCategories}
             />
 
-            <Modal isOpen={activeModal === 'insight'} onClose={() => setActiveModal(null)} title="Your Financial Insight">
-                {insightError && <p className="text-danger text-sm mb-4">{insightError}</p>}
+            <ImportExportModal
+                isOpen={activeModal === 'import-export'}
+                onClose={() => setActiveModal(null)}
+                onImportComplete={loadData}
+                addNotification={addNotification}
+            />
+
+            <CategoryManagement
+                isOpen={activeModal === 'categories'}
+                onClose={() => setActiveModal(null)}
+                addNotification={addNotification}
+            />
+
+            <Modal isOpen={activeModal === 'insight'} onClose={() => setActiveModal(null)} title="AI Financial Insight">
                 {insight && (
                     <div className="space-y-6">
                         <div>
@@ -483,6 +506,6 @@ export default function App() {
           @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
           .animate-fade-in { animation: fade-in 0.5s ease-out 0.4s both; }
        `}</style>
-        </>
+        </div>
     );
 }

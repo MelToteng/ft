@@ -3,7 +3,6 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { Transaction, BudgetPeriod, BudgetItem } from '../../types';
 import { Button, Icons, Modal } from '../../components/ui';
 import { StatCard } from './StatCard';
-import { Header } from '../layout/Header';
 
 const PIE_CHART_COLORS = ['#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#6366F1'];
 
@@ -22,8 +21,6 @@ interface DashboardViewProps {
     formatCurrency: (value: number) => string;
     setActiveModal: (modal: string | null) => void;
     setView: (view: 'dashboard' | 'budgets' | 'transactions') => void;
-    handleGetInsight: () => void;
-    isInsightLoading: boolean;
     handleDeleteTransaction: (id: number) => void;
     isBalanceTrendModalOpen: boolean;
     setIsBalanceTrendModalOpen: (isOpen: boolean) => void;
@@ -47,8 +44,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     formatCurrency,
     setActiveModal,
     setView,
-    handleGetInsight,
-    isInsightLoading,
     handleDeleteTransaction,
     isBalanceTrendModalOpen,
     setIsBalanceTrendModalOpen,
@@ -75,15 +70,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     return (
         <>
-            <Header />
 
             <section className="flex flex-wrap gap-4 justify-center items-center mb-8 animate-slide-up">
                 <Button onClick={() => setActiveModal('income')}>💰 Add Income</Button>
                 <Button onClick={() => setActiveModal('expense')}>💸 Add Expense</Button>
-                <Button variant="secondary" onClick={() => setView('budgets')}>📊 Manage Budgets</Button>
-                <Button variant="secondary" onClick={handleGetInsight} disabled={isInsightLoading}>
-                    {isInsightLoading ? 'Analyzing...' : <><Icons.Sparkles /> Get AI Insight</>}
-                </Button>
+                <Button variant="secondary" onClick={() => setView('budgets')}>📊 Budget Planner</Button>
             </section>
 
             <div className="flex justify-end items-center mb-6 animate-fade-in gap-4">

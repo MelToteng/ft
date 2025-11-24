@@ -36,3 +36,42 @@ export interface Notification {
   message: string;
   type: 'success' | 'error' | 'info';
 }
+
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export interface RecurringTransaction {
+  id: number;
+  description: string;
+  amount: number;
+  type: TransactionType;
+  category: string;
+  frequency: RecurringFrequency;
+  dayOfPeriod?: number; // day of month (1-31) for monthly, day of week (0-6) for weekly
+  startDate: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD, undefined means indefinite
+  isActive: boolean;
+}
+
+export interface CustomCategory {
+  id: number;
+  name: string;
+  type: TransactionType;
+  color: string; // hex color code
+  icon?: string; // emoji or icon name
+}
+
+export interface CSVColumnMapping {
+  date: string;
+  description: string;
+  amount: string;
+  type?: string;
+  category?: string;
+}
+
+export interface ParsedTransaction {
+  description: string;
+  amount: number;
+  date: string;
+  type?: TransactionType;
+  category?: string;
+}
