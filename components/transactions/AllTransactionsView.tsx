@@ -48,6 +48,14 @@ export const AllTransactionsView: React.FC<AllTransactionsViewProps> = ({ onClos
             })
     }, [transactions, filters, budgetPeriods]);
 
+    const [isTotalsOpen, setIsTotalsOpen] = useState(true);
+
+    const { totalIncome, totalExpense, netTotal } = useMemo(() => {
+        const income = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+        const expense = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        return { totalIncome: income, totalExpense: expense, netTotal: income - expense };
+    }, [filteredTransactions]);
+
     return (
         <div className="animate-fade-in py-12">
             <header className="flex flex-col md:flex-row justify-between md:items-center mb-8 gap-4">
@@ -67,7 +75,37 @@ export const AllTransactionsView: React.FC<AllTransactionsViewProps> = ({ onClos
                     onFilterChange={setFilters}
                     budgetPeriods={budgetPeriods}
                 />
-                <div className="space-y-3 h-[60vh] overflow-y-auto pr-2 mt-6 border-t border-border-light pt-6">
+
+                <div className="mt-6 mb-6">
+                    <button
+                        onClick={() => setIsTotalsOpen(!isTotalsOpen)}
+                        className="flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors mb-2"
+                    >
+                        <Icons.ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isTotalsOpen ? 'rotate-180' : ''}`} />
+                        {isTotalsOpen ? 'Hide Totals' : 'Show Totals'}
+                    </button>
+
+                    {isTotalsOpen && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-slide-down">
+                            <div className="bg-surface-light p-4 rounded-xl border border-border-light">
+                                <p className="text-sm text-text-secondary mb-1">Total Income</p>
+                                <p className="text-xl font-bold text-success">+{formatCurrency(totalIncome)}</p>
+                            </div>
+                            <div className="bg-surface-light p-4 rounded-xl border border-border-light">
+                                <p className="text-sm text-text-secondary mb-1">Total Expenses</p>
+                                <p className="text-xl font-bold text-danger">-{formatCurrency(totalExpense)}</p>
+                            </div>
+                            <div className="bg-surface-light p-4 rounded-xl border border-border-light">
+                                <p className="text-sm text-text-secondary mb-1">Net Total</p>
+                                <p className={`text-xl font-bold ${netTotal >= 0 ? 'text-success' : 'text-danger'}`}>
+                                    {netTotal >= 0 ? '+' : ''}{formatCurrency(netTotal)}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="space-y-3 h-[50vh] overflow-y-auto pr-2 border-t border-border-light pt-6">
                     {filteredTransactions.length > 0 ? filteredTransactions.map(t => (
                         <div key={t.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-surface-light/50 transition-colors">
                             <div>

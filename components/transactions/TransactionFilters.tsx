@@ -15,7 +15,7 @@ interface TransactionFiltersProps {
     budgetPeriods: BudgetPeriod[];
 }
 
-export const TransactionFilters: React.FC<TransactionFiltersProps> = ({ allCategories, filters, onFilterChange, budgetPeriods }) => {
+export const TransactionFilters: React.FC<TransactionFiltersProps> = ({ allCategories = [], filters, onFilterChange, budgetPeriods = [] }) => {
     const [isOpen, setIsOpen] = useState(true); // Default open on this page
     const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
     const categoryDropdownRef = useRef<HTMLDivElement>(null);

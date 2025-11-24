@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BudgetPeriod, BudgetItem } from '../../types';
-import { Button, FormInput, FormSelect, Icons } from '../../components/ui';
-
-const DEFAULT_EXPENSE_CATEGORIES = ['Housing', 'Groceries', 'Transport', 'Utilities', 'Eating Out', 'Entertainment', 'Shopping', 'Health', 'Personal Care', 'Subscriptions', 'Gifts', 'Travel', 'Other'];
+import { Button, FormInput, Icons } from '../../components/ui';
+import { BudgetCategoryModal } from './BudgetCategoryModal';
 
 interface BudgetManagementViewProps {
     onClose: () => void;
@@ -14,14 +13,21 @@ interface BudgetManagementViewProps {
     onDeletePeriod: (id: number) => Promise<void>;
 }
 
-export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({ onClose, budgetPeriods, budgets, allCategories, addNotification, onSavePeriod, onDeletePeriod }) => {
+export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
+    onClose,
+    budgetPeriods,
+    budgets,
+    allCategories,
+    addNotification,
+    onSavePeriod,
+    onDeletePeriod
+}) => {
     const [activePeriodId, setActivePeriodId] = useState<number | 'new' | null>(null);
     const [periodName, setPeriodName] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    const [budgetValues, setBudgetValues] = useState<Record<string, string>>({});
-    const [displayedCategories, setDisplayedCategories] = useState<string[]>([]);
-    const [customCategory, setCustomCategory] = useState('');
+    const [budgetValues, setBudgetValues] = useState<Record<string, number>>({});
+    const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
     useEffect(() => {
         if (budgetPeriods.length > 0 && !activePeriodId) {
@@ -41,15 +47,11 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({ onCl
                 setEndDate(period.endDate);
 
                 const periodBudgets = budgets.filter(b => b.budgetPeriodId === activePeriodId);
-                const initialValues: Record<string, string> = {};
+                const initialValues: Record<string, number> = {};
                 periodBudgets.forEach(b => {
-                    initialValues[b.category] = String(b.amount);
+                    initialValues[b.category] = b.amount;
                 });
                 setBudgetValues(initialValues);
-
-                const budgetCats = new Set(periodBudgets.map(b => b.category));
-                allCategories.forEach(c => budgetCats.add(c));
-                setDisplayedCategories(Array.from(budgetCats).sort());
             }
         } else if (activePeriodId === 'new') {
             const today = new Date();
@@ -60,9 +62,8 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({ onCl
             setStartDate(today.toISOString().slice(0, 10));
             setEndDate(nextMonth.toISOString().slice(0, 10));
             setBudgetValues({});
-            setDisplayedCategories([...DEFAULT_EXPENSE_CATEGORIES].sort());
         }
-    }, [activePeriodId, budgetPeriods, budgets, allCategories]);
+    }, [activePeriodId, budgetPeriods, budgets]);
 
     const handleSelectPeriod = (id: number | 'new') => {
         setActivePeriodId(id);
@@ -78,13 +79,13 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({ onCl
             return;
         }
 
-        const budgetsToSave = displayedCategories
-            .map(category => ({ category, amount: parseFloat(budgetValues[category]) || 0 }))
-            .filter(b => b.amount >= 0);
+        const budgetsToSave = Object.entries(budgetValues)
+            .map(([category, amount]: [string, number]) => ({ category, amount }))
+            .filter((b: { category: string; amount: number }) => b.amount > 0);
 
         try {
             await onSavePeriod({ id: activePeriodId as number, name: periodName, startDate, endDate }, budgetsToSave);
-            onClose(); // Go back to dashboard on success
+            onClose();
         } catch (error: any) {
             addNotification('Failed to save budget: ' + error.message, 'error');
         }
@@ -95,7 +96,7 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({ onCl
             try {
                 await onDeletePeriod(id);
                 setActivePeriodId(null);
-                if (budgetPeriods.length <= 1) { // if last one was deleted
+                if (budgetPeriods.length <= 1) {
                     onClose();
                 }
             } catch (error: any) {
@@ -104,29 +105,46 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({ onCl
         }
     };
 
-    const handleAddCustomCategory = () => {
-        const trimmed = customCategory.trim();
-        if (trimmed && !displayedCategories.includes(trimmed)) {
-            setDisplayedCategories(prev => [...prev, trimmed].sort());
-            setCustomCategory('');
-        }
+    const handleAddCategory = () => {
+        setIsCategoryModalOpen(true);
     };
 
-    const handleRemoveCategory = (categoryToRemove: string) => {
-        setDisplayedCategories(prev => prev.filter(c => c !== categoryToRemove));
+    const handleAddCategories = (categories: string[]) => {
         setBudgetValues(prev => {
             const newValues = { ...prev };
-            delete newValues[categoryToRemove];
+            categories.forEach(cat => {
+                if (!newValues[cat]) {
+                    newValues[cat] = 0; // Initialize with 0, user will enter amount
+                }
+            });
             return newValues;
         });
     };
+
+    const handleAmountChange = (category: string, value: string) => {
+        const amount = parseFloat(value) || 0;
+        setBudgetValues(prev => ({ ...prev, [category]: amount }));
+    };
+
+    const handleRemoveCategory = (category: string) => {
+        setBudgetValues(prev => {
+            const newValues = { ...prev };
+            delete newValues[category];
+            return newValues;
+        });
+    };
+
+    const budgetedCategories = Object.keys(budgetValues).sort();
+    const availableCategories = allCategories.filter(cat => !budgetedCategories.includes(cat));
+
+    const totalBudgeted: number = (Object.values(budgetValues) as number[]).reduce((sum: number, amount: number) => sum + amount, 0);
 
     return (
         <div className="animate-fade-in py-12">
             <header className="flex flex-col md:flex-row justify-between md:items-center mb-8 gap-4">
                 <div>
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary text-transparent bg-clip-text">Budget Management</h1>
-                    <p className="text-text-secondary mt-1">Create custom periods and allocate your funds.</p>
+                    <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary text-transparent bg-clip-text">Budget Planner</h1>
+                    <p className="text-text-secondary mt-1">Create budget periods and allocate funds to categories.</p>
                 </div>
                 <Button onClick={onClose} variant="secondary">
                     <Icons.ChevronLeft /> Back to Dashboard
@@ -140,18 +158,16 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({ onCl
 
                     {/* Mobile Dropdown View */}
                     <div className="lg:hidden">
-                        <FormSelect
-                            label=""
-                            id="budget-period-select"
+                        <select
                             value={activePeriodId || ''}
                             onChange={e => handleSelectPeriod(e.target.value === 'new' ? 'new' : Number(e.target.value))}
-                            className="!mb-4"
+                            className="w-full bg-surface-light border border-border rounded-xl px-4 py-2 text-text-primary focus:ring-2 focus:ring-primary focus:outline-none mb-4"
                         >
                             {budgetPeriods.map(p => (
                                 <option key={p.id} value={p.id}>{p.name}</option>
                             ))}
                             <option value="new">✚ Create New Period...</option>
-                        </FormSelect>
+                        </select>
                     </div>
 
                     {/* Desktop List View */}
@@ -174,39 +190,74 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({ onCl
                     </div>
                 </div>
 
-
                 {/* Right Column: Editor */}
                 <div className="lg:col-span-2">
                     {activePeriodId ? (
                         <div>
                             <h3 className="text-xl font-bold mb-4">{activePeriodId === 'new' ? 'Create New Period' : 'Edit Period'}</h3>
-                            <div className="bg-surface-light p-4 rounded-2xl">
-                                <FormInput label="Period Name" id="periodName" value={periodName} onChange={e => setPeriodName(e.target.value)} placeholder="e.g., July Paycheck" />
+                            <div className="bg-surface-light p-4 rounded-2xl mb-6">
+                                <FormInput label="Period Name" id="periodName" value={periodName} onChange={e => setPeriodName(e.target.value)} placeholder="e.g., January 2024" />
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormInput label="Start Date" id="startDate" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
                                     <FormInput label="End Date" id="endDate" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
                                 </div>
                             </div>
 
-                            <h3 className="text-xl font-bold mt-6 mb-4">Category Budgets</h3>
-                            <div className="space-y-3 max-h-64 overflow-y-auto pr-2 mb-4">
-                                {displayedCategories.map(cat => (
-                                    <div key={cat} className="flex items-center gap-2">
-                                        <label htmlFor={`budget-${cat}`} className="text-sm font-medium text-text-secondary flex-1 truncate w-1/3">{cat}</label>
-                                        <div className="flex-1">
-                                            <FormInput label="" id={`budget-${cat}`} type="number" value={budgetValues[cat] || ''} onChange={e => setBudgetValues({ ...budgetValues, [cat]: e.target.value })} placeholder="0.00" step="0.01" className="!mb-0" />
-                                        </div>
-                                        <button onClick={() => handleRemoveCategory(cat)} className="text-text-muted hover:text-danger p-2 rounded-md transition-colors"><Icons.Trash /></button>
-                                    </div>
-                                ))}
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-bold">Category Budgets</h3>
+                                {totalBudgeted > 0 && (
+                                    <span className="text-sm text-text-muted">
+                                        Total: <span className="font-semibold text-primary">${totalBudgeted.toFixed(2)}</span>
+                                    </span>
+                                )}
                             </div>
 
-                            <div className="flex gap-2 border-t border-border-light pt-4">
-                                <FormInput label="" id="customCategory" value={customCategory} onChange={e => setCustomCategory(e.target.value)} placeholder="Add new category..." className="!mb-0 flex-grow" />
-                                <
-                                    Button type="button" variant="secondary" onClick={handleAddCustomCategory} className="!py-2">Add</Button>
-                            </div>
-                            <div className="flex justify-between items-center mt-6">
+                            {budgetedCategories.length > 0 ? (
+                                <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
+                                    {budgetedCategories.map((cat: string) => (
+                                        <div key={cat} className="flex items-center gap-3">
+                                            <label htmlFor={`budget-${cat}`} className="text-sm font-medium text-text-primary flex-1 min-w-0">
+                                                {cat}
+                                            </label>
+                                            <div className="flex-1 max-w-xs">
+                                                <input
+                                                    type="number"
+                                                    id={`budget-${cat}`}
+                                                    value={budgetValues[cat] || ''}
+                                                    onChange={(e) => handleAmountChange(cat, e.target.value)}
+                                                    placeholder="0.00"
+                                                    step="0.01"
+                                                    min="0"
+                                                    className="w-full bg-surface-light border border-border rounded-xl px-4 py-2 text-text-primary focus:ring-2 focus:ring-primary focus:outline-none"
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={() => handleRemoveCategory(cat)}
+                                                className="text-text-muted hover:text-danger p-2 rounded-md transition-colors flex-shrink-0"
+                                                title="Remove category"
+                                            >
+                                                <Icons.Trash className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-text-muted bg-surface-light rounded-xl mb-4">
+                                    <p className="mb-2">No categories budgeted yet</p>
+                                    <p className="text-sm">Click "Add Budget Category" to get started</p>
+                                </div>
+                            )}
+
+                            <Button
+                                variant="secondary"
+                                onClick={handleAddCategory}
+                                className="w-full mb-6"
+                                disabled={availableCategories.length === 0}
+                            >
+                                <Icons.Plus /> Add Budget Category
+                            </Button>
+
+                            <div className="flex justify-between items-center pt-4 border-t border-border-light">
                                 {activePeriodId !== 'new' ? (
                                     <Button variant="danger" onClick={() => handleDelete(activePeriodId as number)} className="!py-2"><Icons.Trash /> Delete Period</Button>
                                 ) : <div></div>}
@@ -220,6 +271,13 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({ onCl
                     )}
                 </div>
             </div>
+
+            <BudgetCategoryModal
+                isOpen={isCategoryModalOpen}
+                onClose={() => setIsCategoryModalOpen(false)}
+                onAddCategories={handleAddCategories}
+                availableCategories={availableCategories}
+            />
         </div>
     );
 };
