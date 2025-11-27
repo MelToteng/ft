@@ -17,7 +17,7 @@ interface DashboardViewProps {
     periodIncome: number;
     periodExpenses: number;
     periodNet: number;
-    financialRunway: string;
+    savingsRate: number;
     formatCurrency: (value: number) => string;
     setActiveModal: (modal: string | null) => void;
     setView: (view: 'dashboard' | 'budgets' | 'transactions') => void;
@@ -40,7 +40,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     periodIncome,
     periodExpenses,
     periodNet,
-    financialRunway,
+    savingsRate,
     formatCurrency,
     setActiveModal,
     setView,
@@ -115,10 +115,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
 
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12 animate-fade-in">
-                <StatCard label="Total Income" value={formatCurrency(periodIncome)} colorClass="bg-success" />
-                <StatCard label="Total Expenses" value={formatCurrency(periodExpenses)} colorClass="bg-danger" />
-                <StatCard label="Current Balance" value={formatCurrency(periodNet)} colorClass="bg-primary" />
-                <StatCard label="Financial Runway" value={financialRunway} colorClass="bg-warning" />
+                <StatCard
+                    label="Total Income"
+                    value={formatCurrency(periodIncome)}
+                    colorClass="bg-success"
+                    description="Sum of all income transactions in the selected period."
+                />
+                <StatCard
+                    label="Total Expenses"
+                    value={formatCurrency(periodExpenses)}
+                    colorClass="bg-danger"
+                    description="Sum of all expense transactions in the selected period."
+                />
+                <StatCard
+                    label="Current Balance"
+                    value={formatCurrency(periodNet)}
+                    colorClass="bg-primary"
+                    description="Total Income minus Total Expenses for the selected period."
+                />
+                <StatCard
+                    label="Savings Rate"
+                    value={`${savingsRate.toFixed(1)}%`}
+                    colorClass={savingsRate >= 20 ? 'bg-success' : savingsRate > 0 ? 'bg-warning' : 'bg-danger'}
+                    description="Percentage of income saved in this period. Formula: ((Income - Expenses) / Income) * 100."
+                />
             </section>
 
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
@@ -197,7 +217,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             </div>
                         </div>);
                     })()}
-                </div>
+                </div >
 
                 <div className="bg-surface/50 backdrop-blur-xl p-6 rounded-4xl border border-border h-96">
                     <div className="flex justify-between items-center mb-4">
@@ -260,7 +280,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         {dashboardTransactions.length === 0 && <div className="text-center py-10 text-text-muted">No transactions for this period.</div>}
                     </div>
                 </div>
-            </section>
+            </section >
 
             <Modal isOpen={isBalanceTrendModalOpen} onClose={() => setIsBalanceTrendModalOpen(false)} title="Balance Trend" className="max-w-4xl">
                 <div className="h-[60vh] p-4">

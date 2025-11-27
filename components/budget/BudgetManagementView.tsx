@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BudgetPeriod, BudgetItem } from '../../types';
+import { BudgetPeriod, BudgetItem, BudgetSubItem } from '../../types';
 import { Button, FormInput, Icons } from '../../components/ui';
 import { BudgetCategoryModal } from './BudgetCategoryModal';
 
@@ -9,7 +9,7 @@ interface BudgetManagementViewProps {
     budgets: BudgetItem[];
     allCategories: string[];
     addNotification: (message: string, type: 'success' | 'error' | 'info') => void;
-    onSavePeriod: (period: Omit<BudgetPeriod, 'id'> & { id: number | 'new' }, budgetsToSave: { category: string, amount: number }[]) => Promise<void>;
+    onSavePeriod: (period: Omit<BudgetPeriod, 'id'> & { id: number | 'new' }, budgetsToSave: { category: string, amount: number, subItems?: { name: string; amount: number }[] }[]) => Promise<void>;
     onDeletePeriod: (id: number) => Promise<void>;
 }
 
@@ -27,6 +27,8 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [budgetValues, setBudgetValues] = useState<Record<string, number>>({});
+    const [subItemsValues, setSubItemsValues] = useState<Record<string, { name: string; amount: number }[]>>({});
+    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
     useEffect(() => {
@@ -48,10 +50,16 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
 
                 const periodBudgets = budgets.filter(b => b.budgetPeriodId === activePeriodId);
                 const initialValues: Record<string, number> = {};
+                const initialSubItems: Record<string, { name: string; amount: number }[]> = {};
+
                 periodBudgets.forEach(b => {
                     initialValues[b.category] = b.amount;
+                    if (b.subItems) {
+                        initialSubItems[b.category] = b.subItems.map(s => ({ name: s.name, amount: s.amount }));
+                    }
                 });
                 setBudgetValues(initialValues);
+                setSubItemsValues(initialSubItems);
             }
         } else if (activePeriodId === 'new') {
             const today = new Date();
@@ -62,6 +70,7 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
             setStartDate(today.toISOString().slice(0, 10));
             setEndDate(nextMonth.toISOString().slice(0, 10));
             setBudgetValues({});
+            setSubItemsValues({});
         }
     }, [activePeriodId, budgetPeriods, budgets]);
 
@@ -80,8 +89,12 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
         }
 
         const budgetsToSave = Object.entries(budgetValues)
-            .map(([category, amount]: [string, number]) => ({ category, amount }))
-            .filter((b: { category: string; amount: number }) => b.amount > 0);
+            .map(([category, amount]: [string, number]) => ({
+                category,
+                amount,
+                subItems: subItemsValues[category] || []
+            }))
+            .filter((b) => b.amount > 0);
 
         try {
             await onSavePeriod({ id: activePeriodId as number, name: periodName, startDate, endDate }, budgetsToSave);
@@ -114,7 +127,7 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
             const newValues = { ...prev };
             categories.forEach(cat => {
                 if (!newValues[cat]) {
-                    newValues[cat] = 0; // Initialize with 0, user will enter amount
+                    newValues[cat] = 0;
                 }
             });
             return newValues;
@@ -131,6 +144,53 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
             const newValues = { ...prev };
             delete newValues[category];
             return newValues;
+        });
+        setSubItemsValues(prev => {
+            const newValues = { ...prev };
+            delete newValues[category];
+            return newValues;
+        });
+    };
+
+    const toggleExpandCategory = (category: string) => {
+        setExpandedCategories(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(category)) {
+                newSet.delete(category);
+            } else {
+                newSet.add(category);
+            }
+            return newSet;
+        });
+    };
+
+    const handleAddSubItem = (category: string) => {
+        setSubItemsValues(prev => ({
+            ...prev,
+            [category]: [...(prev[category] || []), { name: '', amount: 0 }]
+        }));
+        if (!expandedCategories.has(category)) {
+            toggleExpandCategory(category);
+        }
+    };
+
+    const handleSubItemChange = (category: string, index: number, field: 'name' | 'amount', value: string) => {
+        setSubItemsValues(prev => {
+            const items = [...(prev[category] || [])];
+            if (field === 'amount') {
+                items[index] = { ...items[index], amount: parseFloat(value) || 0 };
+            } else {
+                items[index] = { ...items[index], name: value };
+            }
+            return { ...prev, [category]: items };
+        });
+    };
+
+    const handleRemoveSubItem = (category: string, index: number) => {
+        setSubItemsValues(prev => {
+            const items = [...(prev[category] || [])];
+            items.splice(index, 1);
+            return { ...prev, [category]: items };
         });
     };
 
@@ -204,7 +264,7 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
                             </div>
 
                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-xl font-bold">Category Budgets</h3>
+                                <h3 className="text-xl font-bold">Budget Categories</h3>
                                 {totalBudgeted > 0 && (
                                     <span className="text-sm text-text-muted">
                                         Total: <span className="font-semibold text-primary">${totalBudgeted.toFixed(2)}</span>
@@ -213,33 +273,103 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
                             </div>
 
                             {budgetedCategories.length > 0 ? (
-                                <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
-                                    {budgetedCategories.map((cat: string) => (
-                                        <div key={cat} className="flex items-center gap-3">
-                                            <label htmlFor={`budget-${cat}`} className="text-sm font-medium text-text-primary flex-1 min-w-0">
-                                                {cat}
-                                            </label>
-                                            <div className="flex-1 max-w-xs">
-                                                <input
-                                                    type="number"
-                                                    id={`budget-${cat}`}
-                                                    value={budgetValues[cat] || ''}
-                                                    onChange={(e) => handleAmountChange(cat, e.target.value)}
-                                                    placeholder="0.00"
-                                                    step="0.01"
-                                                    min="0"
-                                                    className="w-full bg-surface-light border border-border rounded-xl px-4 py-2 text-text-primary focus:ring-2 focus:ring-primary focus:outline-none"
-                                                />
+                                <div className="space-y-3 mb-4 max-h-[60vh] overflow-y-auto pr-2">
+                                    {budgetedCategories.map((cat: string) => {
+                                        const subItems = subItemsValues[cat] || [];
+                                        const subItemsTotal = subItems.reduce((sum, item) => sum + item.amount, 0);
+                                        const isExpanded = expandedCategories.has(cat);
+                                        const categoryAmount = budgetValues[cat] || 0;
+                                        const progress = categoryAmount > 0 ? (subItemsTotal / categoryAmount) * 100 : 0;
+
+                                        return (
+                                            <div key={cat} className="bg-surface-light/50 rounded-xl border border-border/50 overflow-hidden">
+                                                <div className="flex items-center gap-3 p-3">
+                                                    <button
+                                                        onClick={() => toggleExpandCategory(cat)}
+                                                        className="text-text-muted hover:text-primary transition-colors"
+                                                    >
+                                                        {isExpanded ? <Icons.ChevronDown className="w-4 h-4" /> : <Icons.ChevronRight className="w-4 h-4" />}
+                                                    </button>
+                                                    <label htmlFor={`budget-${cat}`} className="text-sm font-medium text-text-primary flex-1 min-w-0">
+                                                        {cat}
+                                                    </label>
+                                                    <div className="flex-1 max-w-xs">
+                                                        <input
+                                                            type="number"
+                                                            id={`budget-${cat}`}
+                                                            value={budgetValues[cat] || ''}
+                                                            onChange={(e) => handleAmountChange(cat, e.target.value)}
+                                                            placeholder="0.00"
+                                                            step="0.01"
+                                                            min="0"
+                                                            className="w-full bg-surface border border-border rounded-xl px-4 py-2 text-text-primary focus:ring-2 focus:ring-primary focus:outline-none"
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleRemoveCategory(cat)}
+                                                        className="text-text-muted hover:text-danger p-2 rounded-md transition-colors flex-shrink-0"
+                                                        title="Remove category"
+                                                    >
+                                                        <Icons.Trash className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+
+                                                {/* Sub-items Section */}
+                                                {isExpanded && (
+                                                    <div className="bg-surface/30 p-3 border-t border-border/50">
+                                                        <div className="mb-3 flex items-center justify-between text-xs text-text-muted px-1">
+                                                            <span>Sub-items Breakdown</span>
+                                                            <span className={`${subItemsTotal > categoryAmount ? 'text-danger' : 'text-success'}`}>
+                                                                ${subItemsTotal.toFixed(2)} / ${categoryAmount.toFixed(2)}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Progress Bar */}
+                                                        <div className="w-full bg-surface h-1.5 rounded-full mb-3 overflow-hidden">
+                                                            <div
+                                                                className={`h-full rounded-full ${subItemsTotal > categoryAmount ? 'bg-danger' : 'bg-success'}`}
+                                                                style={{ width: `${Math.min(progress, 100)}%` }}
+                                                            ></div>
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            {subItems.map((item, idx) => (
+                                                                <div key={idx} className="flex gap-2 items-center">
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Item Name"
+                                                                        value={item.name}
+                                                                        onChange={(e) => handleSubItemChange(cat, idx, 'name', e.target.value)}
+                                                                        className="flex-1 bg-surface border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                                                                    />
+                                                                    <input
+                                                                        type="number"
+                                                                        placeholder="0.00"
+                                                                        value={item.amount || ''}
+                                                                        onChange={(e) => handleSubItemChange(cat, idx, 'amount', e.target.value)}
+                                                                        className="w-24 bg-surface border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => handleRemoveSubItem(cat, idx)}
+                                                                        className="text-text-muted hover:text-danger p-1.5"
+                                                                    >
+                                                                        <Icons.Trash className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+
+                                                        <button
+                                                            onClick={() => handleAddSubItem(cat)}
+                                                            className="mt-3 text-xs text-primary hover:text-primary-light flex items-center gap-1"
+                                                        >
+                                                            <Icons.Plus className="w-3 h-3" /> Add Sub-item
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
-                                            <button
-                                                onClick={() => handleRemoveCategory(cat)}
-                                                className="text-text-muted hover:text-danger p-2 rounded-md transition-colors flex-shrink-0"
-                                                title="Remove category"
-                                            >
-                                                <Icons.Trash className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <div className="text-center py-8 text-text-muted bg-surface-light rounded-xl mb-4">

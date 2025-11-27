@@ -7,6 +7,7 @@ export interface Transaction {
   amount: number;
   date: string; // YYYY-MM-DD
   category: string;
+  budgetSubItemId?: number;
 }
 
 // New: A budget period with a custom name and date range.
@@ -17,11 +18,19 @@ export interface BudgetPeriod {
   endDate: string; // YYYY-MM-DD
 }
 
+export interface BudgetSubItem {
+  id: number;
+  budgetItemId: number;
+  name: string;
+  amount: number;
+}
+
 export interface BudgetItem {
   id?: number;
   budgetPeriodId: number; // Links to a BudgetPeriod
   category: string;
   amount: number;
+  subItems?: BudgetSubItem[];
 }
 
 
@@ -50,6 +59,7 @@ export interface RecurringTransaction {
   startDate: string; // YYYY-MM-DD
   endDate?: string; // YYYY-MM-DD, undefined means indefinite
   isActive: boolean;
+  lastGeneratedDate?: string; // YYYY-MM-DD
 }
 
 export interface CustomCategory {
