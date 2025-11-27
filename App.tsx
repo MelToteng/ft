@@ -18,6 +18,9 @@ import {
     setSetting,
     getRecurringTransactions,
     addRecurringTransaction,
+    updateRecurringTransaction,
+    deleteRecurringTransaction,
+    processRecurringTransactions,
     getCustomCategories,
 } from './services/supabaseService';
 import { BackgroundShapes } from './components/layout/BackgroundShapes';
@@ -27,6 +30,7 @@ import { BudgetManagementView } from './components/budget/BudgetManagementView';
 import { AllTransactionsView } from './components/transactions/AllTransactionsView';
 import { TransactionFormModal } from './components/transactions/TransactionFormModal';
 import { RecurringTransactionModal } from './components/transactions/RecurringTransactionModal';
+import { RecurringTransactionsView } from './components/transactions/RecurringTransactionsView';
 import { ImportExportModal } from './components/transactions/ImportExportModal';
 import { CategoryManagement } from './components/settings/CategoryManagement';
 import { Auth } from './components/Auth';
@@ -48,7 +52,7 @@ export default function App() {
     const [isInsightLoading, setIsInsightLoading] = useState(false);
     const [insightError, setInsightError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [view, setView] = useState<'dashboard' | 'budgets' | 'transactions'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'budgets' | 'transactions' | 'recurring'>('dashboard');
     const [dashboardPeriodFilter, setDashboardPeriodFilter] = useState<number | 'all'>('all');
     const [isBalanceTrendModalOpen, setIsBalanceTrendModalOpen] = useState(false);
     const [currency, setCurrency] = useState('USD');
@@ -93,14 +97,23 @@ export default function App() {
     const loadData = useCallback(async () => {
         if (!session) return;
         try {
-            const [loadedTransactions, loadedBudgets, loadedPeriods, savedCurrency, loadedRecurring, loadedCategories] = await Promise.all([
+            const results = await Promise.all([
                 getTransactions(),
                 getBudgets(),
                 getBudgetPeriods(),
                 getSetting('currency'),
                 getRecurringTransactions(),
                 getCustomCategories(),
+                processRecurringTransactions(),
             ]);
+
+            const loadedTransactions = results[0];
+            const loadedBudgets = results[1];
+            const loadedPeriods = results[2];
+            const savedCurrency = results[3];
+            const loadedRecurring = results[4];
+            const loadedCategories = results[5];
+            const processingResult = results[6];
 
             setTransactions(loadedTransactions);
             setBudgets(loadedBudgets);
@@ -108,6 +121,13 @@ export default function App() {
             setRecurringTransactions(loadedRecurring);
             setCustomCategories(loadedCategories);
             if (savedCurrency) setCurrency(savedCurrency);
+
+            if (processingResult.generatedCount > 0) {
+                addNotification(processingResult.message, 'success');
+                // Reload transactions to show the new ones
+                const updatedTransactions = await getTransactions();
+                setTransactions(updatedTransactions);
+            }
 
         } catch (error: any) {
             console.error("Error loading data:", error);
@@ -155,20 +175,10 @@ export default function App() {
         return income - expenses;
     }, [transactions]);
 
-    const financialRunway = useMemo(() => {
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const recentExpenses = transactions
-            .filter(t => t.type === 'expense' && new Date(t.date) >= thirtyDaysAgo)
-            .reduce((sum, t) => sum + t.amount, 0);
-
-        if (recentExpenses <= 0) return '∞';
-
-        const avgDailyExpense = recentExpenses / 30;
-        if (totalBalance <= 0) return '0 days';
-
-        return `${Math.floor(totalBalance / avgDailyExpense)} days`;
-    }, [transactions, totalBalance]);
+    const savingsRate = useMemo(() => {
+        if (periodIncome === 0) return 0;
+        return ((periodIncome - periodExpenses) / periodIncome) * 100;
+    }, [periodIncome, periodExpenses]);
 
     const handleAddTransaction = async (transaction: Omit<Transaction, 'id'>, shouldClose: boolean = true) => {
         try {
@@ -195,7 +205,7 @@ export default function App() {
         }
     };
 
-    const handleSavePeriod = async (period: Omit<BudgetPeriod, 'id'> & { id: number | 'new' }, budgetsToSave: { category: string, amount: number }[]) => {
+    const handleSavePeriod = async (period: Omit<BudgetPeriod, 'id'> & { id: number | 'new' }, budgetsToSave: { category: string, amount: number, subItems?: { name: string; amount: number }[] }[]) => {
         if (period.id === 'new') {
             const newPeriod = await addBudgetPeriod({ name: period.name, startDate: period.startDate, endDate: period.endDate });
             await saveBudgets(newPeriod.id, budgetsToSave);
@@ -217,8 +227,27 @@ export default function App() {
         try {
             await addRecurringTransaction(transaction);
             await loadData();
-            setActiveModal(null);
             addNotification('Recurring transaction saved!', 'success');
+        } catch (error: any) {
+            addNotification(error.message, 'error');
+        }
+    };
+
+    const handleUpdateRecurring = async (id: number, transaction: Partial<RecurringTransaction>) => {
+        try {
+            await updateRecurringTransaction(id, transaction);
+            await loadData();
+            addNotification('Recurring transaction updated!', 'success');
+        } catch (error: any) {
+            addNotification(error.message, 'error');
+        }
+    };
+
+    const handleDeleteRecurring = async (id: number) => {
+        try {
+            await deleteRecurringTransaction(id);
+            await loadData();
+            addNotification('Recurring transaction deleted.', 'info');
         } catch (error: any) {
             addNotification(error.message, 'error');
         }
@@ -370,7 +399,7 @@ export default function App() {
             <div className="relative z-10 container mx-auto px-4 py-8 max-w-7xl">
                 <Header
                     onSignOut={handleSignOut}
-                    onRecurring={() => setActiveModal('recurring')}
+                    onRecurring={() => setView('recurring')}
                     onImportExport={() => setActiveModal('import-export')}
                     onCategories={() => setActiveModal('categories')}
                     onGetInsight={handleGetInsight}
@@ -390,7 +419,7 @@ export default function App() {
                         periodIncome={periodIncome}
                         periodExpenses={periodExpenses}
                         periodNet={periodNet}
-                        financialRunway={financialRunway}
+                        savingsRate={savingsRate}
                         formatCurrency={formatCurrency}
                         setActiveModal={setActiveModal}
                         setView={setView}
@@ -425,6 +454,18 @@ export default function App() {
                         formatCurrency={formatCurrency}
                     />
                 )}
+
+                {view === 'recurring' && (
+                    <RecurringTransactionsView
+                        onClose={() => setView('dashboard')}
+                        recurringTransactions={recurringTransactions}
+                        onSaveRecurring={handleSaveRecurring}
+                        onUpdateRecurring={handleUpdateRecurring}
+                        onDeleteRecurring={handleDeleteRecurring}
+                        expenseCategories={activeBudgetCategories}
+                        formatCurrency={formatCurrency}
+                    />
+                )}
             </div>
 
             <TransactionFormModal
@@ -434,13 +475,15 @@ export default function App() {
                 onSubmit={handleAddTransaction}
                 expenseCategories={activeBudgetCategories}
                 customCategories={customCategories}
+                budgets={budgets}
+                budgetPeriods={budgetPeriods}
             />
 
             <RecurringTransactionModal
                 isOpen={activeModal === 'recurring'}
                 onClose={() => setActiveModal(null)}
                 onSave={handleSaveRecurring}
-                expenseCategories={allExpenseCategories}
+                expenseCategories={activeBudgetCategories}
             />
 
             <ImportExportModal

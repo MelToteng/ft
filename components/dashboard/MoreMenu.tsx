@@ -58,7 +58,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
                 <div className="absolute right-0 mt-2 w-56 bg-surface border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-slide-down">
                     <div className="py-2">
                         <button
-                            onClick={() => handleMenuClick(onRecurring)} disabled={true}
+                            onClick={() => handleMenuClick(onRecurring)}
                             className="w-full text-left px-4 py-3 hover:bg-surface-light transition-colors flex items-center gap-3 text-text-primary"
                         >
                             <span className="text-lg">🔄</span>
@@ -66,7 +66,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
                         </button>
 
                         <button
-                            onClick={() => handleMenuClick(onImportExport)} disabled={true}
+                            onClick={() => handleMenuClick(onImportExport)}
                             className="w-full text-left px-4 py-3 hover:bg-surface-light transition-colors flex items-center gap-3 text-text-primary"
                         >
                             <span className="text-lg">📥</span>
@@ -74,7 +74,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
                         </button>
 
                         <button
-                            onClick={() => handleMenuClick(onCategories)} disabled={true}
+                            onClick={() => handleMenuClick(onCategories)}
                             className="w-full text-left px-4 py-3 hover:bg-surface-light transition-colors flex items-center gap-3 text-text-primary"
                         >
                             <span className="text-lg">🏷️</span>
@@ -85,7 +85,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
 
                         <button
                             onClick={() => handleMenuClick(onGetInsight)}
-                            disabled={true}
+                            disabled={isInsightLoading}
                             className="w-full text-left px-4 py-3 hover:bg-surface-light transition-colors flex items-center gap-3 text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <Icons.Sparkles className="w-5 h-5" />
