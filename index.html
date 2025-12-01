@@ -1,6 +1,6 @@
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,8 +8,54 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/x-icon" href="/public/ft-icon.svg">
+    <style>
+        :root {
+            /* Light Mode (Default) */
+            --color-primary: #8B5CF6;
+            --color-primary-dark: #7C3AED;
+            --color-primary-light: #A78BFA;
+            --color-secondary: #10B981;
+            --color-danger: #EF4444;
+            --color-warning: #F59E0B;
+            --color-success: #22C55E;
+
+            --color-background: #F3F4F6;
+            --color-surface: #FFFFFF;
+            --color-surface-light: #F9FAFB;
+
+            --color-text-primary: #111827;
+            --color-text-secondary: #4B5563;
+            --color-text-muted: #9CA3AF;
+
+            --color-border: #E5E7EB;
+            --color-border-light: #D1D5DB;
+        }
+
+        .dark {
+            /* Dark Mode (Original Theme) */
+            --color-primary: #8B5CF6;
+            --color-primary-dark: #7C3AED;
+            --color-primary-light: #A78BFA;
+            --color-secondary: #10B981;
+            --color-danger: #EF4444;
+            --color-warning: #F59E0B;
+            --color-success: #22C55E;
+
+            --color-background: #0F0F23;
+            --color-surface: #1A1A2E;
+            --color-surface-light: #252545;
+
+            --color-text-primary: #FFFFFF;
+            --color-text-secondary: #A1A1AA;
+            --color-text-muted: #71717A;
+
+            --color-border: #27272A;
+            --color-border-light: #3F3F46;
+        }
+    </style>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: {
@@ -17,25 +63,25 @@
                     },
                     colors: {
                         primary: {
-                            DEFAULT: '#8B5CF6',
-                            dark: '#7C3AED',
-                            light: '#A78BFA',
+                            DEFAULT: 'var(--color-primary)',
+                            dark: 'var(--color-primary-dark)',
+                            light: 'var(--color-primary-light)',
                         },
-                        secondary: '#10B981',
-                        danger: '#EF4444',
-                        warning: '#F59E0B',
-                        success: '#22C55E',
-                        background: '#0F0F23',
+                        secondary: 'var(--color-secondary)',
+                        danger: 'var(--color-danger)',
+                        warning: 'var(--color-warning)',
+                        success: 'var(--color-success)',
+                        background: 'var(--color-background)',
                         surface: {
-                            DEFAULT: '#1A1A2E',
-                            light: '#252545',
+                            DEFAULT: 'var(--color-surface)',
+                            light: 'var(--color-surface-light)',
                         },
-                        'text-primary': '#FFFFFF',
-                        'text-secondary': '#A1A1AA',
-                        'text-muted': '#71717A',
+                        'text-primary': 'var(--color-text-primary)',
+                        'text-secondary': 'var(--color-text-secondary)',
+                        'text-muted': 'var(--color-text-muted)',
                         border: {
-                           DEFAULT: '#27272A',
-                           light: '#3F3F46',
+                            DEFAULT: 'var(--color-border)',
+                            light: 'var(--color-border-light)',
                         }
                     },
                     borderRadius: {
@@ -50,8 +96,10 @@
         }
     </script>
 </head>
+
 <body class="bg-background text-text-primary">
     <div id="root"></div>
-<script type="module" src="/index.tsx"></script>
+    <script type="module" src="/index.tsx"></script>
 </body>
+
 </html>

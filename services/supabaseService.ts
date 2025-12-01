@@ -24,6 +24,18 @@ export const addTransaction = async (transaction: Omit<Transaction, 'id'>): Prom
     return data as Transaction;
 };
 
+export const updateTransaction = async (id: number, transaction: Partial<Omit<Transaction, 'id'>>): Promise<Transaction> => {
+    const { data, error } = await supabase
+        .from('transactions')
+        .update(transaction)
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data as Transaction;
+};
+
 export const deleteTransaction = async (id: number): Promise<void> => {
     const { error } = await supabase
         .from('transactions')

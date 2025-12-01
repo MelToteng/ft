@@ -10,6 +10,7 @@ interface TransactionFiltersProps {
         startDate: string;
         endDate: string;
         periodId: number | 'all';
+        searchText: string;
     };
     onFilterChange: React.Dispatch<React.SetStateAction<any>>;
     budgetPeriods: BudgetPeriod[];
@@ -32,7 +33,7 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({ allCateg
     };
 
     const resetFilters = () => {
-        onFilterChange({ type: 'all', categories: [], startDate: '', endDate: '', periodId: 'all' });
+        onFilterChange({ type: 'all', categories: [], startDate: '', endDate: '', periodId: 'all', searchText: '' });
     };
 
     useEffect(() => {
@@ -59,6 +60,19 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({ allCateg
                                 {type}
                             </button>
                         ))}
+                    </div>
+
+                    <div className="mb-4">
+                        <div className="relative">
+                            <Icons.Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
+                            <input
+                                type="text"
+                                placeholder="Search transactions..."
+                                value={filters.searchText}
+                                onChange={(e) => handleFilterChange('searchText', e.target.value)}
+                                className="w-full bg-surface-light border border-border rounded-xl pl-10 pr-4 py-3 text-text-primary focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
+                            />
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

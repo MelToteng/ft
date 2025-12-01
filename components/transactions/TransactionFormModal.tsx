@@ -7,6 +7,8 @@ interface TransactionFormModalProps {
     onClose: () => void;
     type: TransactionType | null;
     onSubmit: (transaction: Omit<Transaction, 'id'>, shouldClose?: boolean) => void;
+    onUpdate?: (id: number, transaction: Partial<Omit<Transaction, 'id'>>) => void;
+    transaction?: Transaction | null; // For edit mode
     expenseCategories: string[];
     customCategories?: CustomCategory[];
     budgets?: BudgetItem[];
@@ -18,6 +20,8 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
     onClose,
     type,
     onSubmit,
+    onUpdate,
+    transaction = null,
     expenseCategories,
     customCategories = [],
     budgets = [],
@@ -31,30 +35,56 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
 
     useEffect(() => {
         if (isOpen) {
-            setDescription('');
-            setAmount('');
-            setDate(new Date().toISOString().split('T')[0]);
-            setCategory(type === 'income' ? 'Income' : expenseCategories.includes('Other') ? 'Other' : expenseCategories[0] || '');
+            if (transaction) {
+                // Edit mode - populate with existing transaction data
+                setDescription(transaction.description);
+                setAmount(transaction.amount.toString());
+                setDate(transaction.date);
+                setCategory(transaction.category);
+                setSubItemId(transaction.budget_sub_item_id || null);
+            } else {
+                // Add mode - reset to defaults
+                setDescription('');
+                setAmount('');
+                setDate(new Date().toISOString().split('T')[0]);
+                setCategory(type === 'income' ? 'Income' : expenseCategories.includes('Other') ? 'Other' : expenseCategories[0] || '');
+                setSubItemId(null);
+            }
+        }
+    }, [isOpen, type, expenseCategories, transaction]);
+
+    // Reset sub-item when category or date changes (only in add mode)
+    useEffect(() => {
+        if (!transaction) {
             setSubItemId(null);
         }
-    }, [isOpen, type, expenseCategories]);
-
-    // Reset sub-item when category or date changes
-    useEffect(() => {
-        setSubItemId(null);
-    }, [category, date]);
+    }, [category, date, transaction]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!type) return;
-        onSubmit({
-            description,
-            amount: parseFloat(amount),
-            date,
-            category,
-            type,
-            budgetSubItemId: subItemId || undefined
-        }, true);
+
+        if (transaction && onUpdate) {
+            // Edit mode
+            onUpdate(transaction.id, {
+                description,
+                amount: parseFloat(amount),
+                date,
+                category,
+                type,
+                budget_sub_item_id: subItemId || undefined
+            });
+        } else {
+            // Add mode
+            onSubmit({
+                description,
+                amount: parseFloat(amount),
+                date,
+                category,
+                type,
+                budget_sub_item_id: subItemId || undefined
+            }, true);
+        }
     };
 
     const handleSaveAndAddAnother = (e: React.MouseEvent) => {
@@ -73,7 +103,7 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
             date,
             category,
             type,
-            budgetSubItemId: subItemId || undefined
+            budget_sub_item_id: subItemId || undefined
         }, false);
         setDescription('');
         setAmount('');
@@ -96,8 +126,13 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
         : null;
     const availableSubItems = currentBudget?.subItems || [];
 
+    const isEditMode = !!transaction;
+    const modalTitle = isEditMode
+        ? (type === 'income' ? 'Edit Income' : 'Edit Expense')
+        : (type === 'income' ? 'Add Income' : 'Add Expense');
+
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={type === 'income' ? 'Add Income' : 'Add Expense'}>
+        <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>
             <form onSubmit={handleSubmit}>
                 <FormInput label="Description" id="description" type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder={type === 'income' ? 'e.g., Salary' : 'e.g., Groceries'} required />
                 <div className="grid grid-cols-2 gap-4">
@@ -157,8 +192,10 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
 
                 <FormInput label="Date" id="date" type="date" value={date} onChange={e => setDate(e.target.value)} required />
                 <div className="flex gap-3 mt-4">
-                    <Button type="submit" className="flex-1">{type === 'income' ? 'Add Income' : 'Add Expense'}</Button>
-                    {type === 'expense' && (
+                    <Button type="submit" className="flex-1">
+                        {isEditMode ? 'Update' : (type === 'income' ? 'Add Income' : 'Add Expense')}
+                    </Button>
+                    {type === 'expense' && !isEditMode && (
                         <Button type="button" variant="secondary" className="flex-1" onClick={handleSaveAndAddAnother}>
                             Save & Add Another
                         </Button>

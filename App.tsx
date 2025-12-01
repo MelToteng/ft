@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { ThemeProvider } from './context/ThemeContext';
 import { Transaction, TransactionType, BudgetItem, BudgetPeriod, GeminiInsightData, Notification, RecurringTransaction, CustomCategory } from './types';
 import { getFinancialInsight } from './services/geminiService';
 import { Modal } from './components/ui';
@@ -7,6 +8,7 @@ import { Session } from '@supabase/supabase-js';
 import {
     getTransactions,
     addTransaction,
+    updateTransaction,
     deleteTransaction,
     getBudgets,
     saveBudgets,
@@ -24,22 +26,23 @@ import {
     getCustomCategories,
 } from './services/supabaseService';
 import { BackgroundShapes } from './components/layout/BackgroundShapes';
+import { Auth } from './components/Auth';
 import { Header } from './components/layout/Header';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { BudgetManagementView } from './components/budget/BudgetManagementView';
 import { AllTransactionsView } from './components/transactions/AllTransactionsView';
+import { RecurringTransactionsView } from './components/transactions/RecurringTransactionsView';
 import { TransactionFormModal } from './components/transactions/TransactionFormModal';
 import { RecurringTransactionModal } from './components/transactions/RecurringTransactionModal';
-import { RecurringTransactionsView } from './components/transactions/RecurringTransactionsView';
 import { ImportExportModal } from './components/transactions/ImportExportModal';
 import { CategoryManagement } from './components/settings/CategoryManagement';
-import { Auth } from './components/Auth';
 
 // --- CONSTANTS ---
-const DEFAULT_EXPENSE_CATEGORIES = ['Housing', 'Groceries', 'Transport', 'Utilities', 'Eating Out', 'Entertainment', 'Shopping', 'Health', 'Personal Care', 'Subscriptions', 'Gifts', 'Travel', 'Other'];
+const DEFAULT_EXPENSE_CATEGORIES = [
+    'Food', 'Transport', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Housing', 'Education', 'Personal Care', 'Travel', 'Savings', 'Debt', 'Gifts', 'Donations', 'Other'
+];
 
-// --- MAIN APP COMPONENT ---
-export default function App() {
+function AppContent() {
     const [session, setSession] = useState<Session | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [budgets, setBudgets] = useState<BudgetItem[]>([]);
@@ -202,6 +205,16 @@ export default function App() {
             } catch (error: any) {
                 addNotification(error.message, 'error');
             }
+        }
+    };
+
+    const handleUpdateTransaction = async (id: number, updates: Partial<Omit<Transaction, 'id'>>) => {
+        try {
+            const updatedTransaction = await updateTransaction(id, updates);
+            setTransactions(prev => prev.map(t => t.id === id ? updatedTransaction : t));
+            addNotification('Transaction updated successfully!', 'success');
+        } catch (error: any) {
+            addNotification(error.message, 'error');
         }
     };
 
@@ -419,6 +432,7 @@ export default function App() {
                         periodIncome={periodIncome}
                         periodExpenses={periodExpenses}
                         periodNet={periodNet}
+                        totalBalance={totalBalance}
                         savingsRate={savingsRate}
                         formatCurrency={formatCurrency}
                         setActiveModal={setActiveModal}
@@ -449,8 +463,11 @@ export default function App() {
                         onClose={() => setView('dashboard')}
                         transactions={transactions}
                         budgetPeriods={budgetPeriods}
+                        budgets={budgets}
+                        customCategories={customCategories}
                         allCategories={allExpenseCategories}
                         onDeleteTransaction={handleDeleteTransaction}
+                        onUpdateTransaction={handleUpdateTransaction}
                         formatCurrency={formatCurrency}
                     />
                 )}
@@ -550,5 +567,13 @@ export default function App() {
           .animate-fade-in { animation: fade-in 0.5s ease-out 0.4s both; }
        `}</style>
         </div>
+    );
+}
+
+export default function App() {
+    return (
+        <ThemeProvider>
+            <AppContent />
+        </ThemeProvider>
     );
 }
