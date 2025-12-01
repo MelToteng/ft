@@ -1,25 +1,41 @@
 import React, { useState, useMemo } from 'react';
-import { Transaction, BudgetPeriod } from '../../types';
+import { Transaction, BudgetPeriod, BudgetItem, CustomCategory } from '../../types';
 import { Button, Icons } from '../../components/ui';
 import { TransactionFilters } from './TransactionFilters';
+import { TransactionFormModal } from './TransactionFormModal';
 
 interface AllTransactionsViewProps {
     onClose: () => void;
     transactions: Transaction[];
     budgetPeriods: BudgetPeriod[];
+    budgets: BudgetItem[];
+    customCategories: CustomCategory[];
     allCategories: string[];
     onDeleteTransaction: (id: number) => Promise<void>;
+    onUpdateTransaction: (id: number, updates: Partial<Omit<Transaction, 'id'>>) => Promise<void>;
     formatCurrency: (value: number) => string;
 }
 
-export const AllTransactionsView: React.FC<AllTransactionsViewProps> = ({ onClose, transactions, budgetPeriods, allCategories, onDeleteTransaction, formatCurrency }) => {
+export const AllTransactionsView: React.FC<AllTransactionsViewProps> = ({
+    onClose,
+    transactions,
+    budgetPeriods,
+    budgets,
+    customCategories,
+    allCategories,
+    onDeleteTransaction,
+    onUpdateTransaction,
+    formatCurrency
+}) => {
     const [filters, setFilters] = useState({
         type: 'all' as 'all' | 'income' | 'expense',
         categories: [] as string[],
         startDate: '',
         endDate: '',
         periodId: 'all' as number | 'all',
+        searchText: '',
     });
+    const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
     const filteredTransactions = useMemo(() => {
         let results = [...transactions];
@@ -46,6 +62,14 @@ export const AllTransactionsView: React.FC<AllTransactionsViewProps> = ({ onClos
                 endDate.setHours(23, 59, 59, 999);
                 return new Date(t.date) <= endDate;
             })
+            .filter(t => {
+                if (!filters.searchText) return true;
+                const searchLower = filters.searchText.toLowerCase();
+                return (
+                    t.description.toLowerCase().includes(searchLower) ||
+                    t.category.toLowerCase().includes(searchLower)
+                );
+            });
     }, [transactions, filters, budgetPeriods]);
 
     const [isTotalsOpen, setIsTotalsOpen] = useState(true);
@@ -116,6 +140,13 @@ export const AllTransactionsView: React.FC<AllTransactionsViewProps> = ({ onClos
                                 <p className={`font-bold ${t.type === 'income' ? 'text-success' : 'text-danger'}`}>
                                     {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                                 </p>
+                                <button
+                                    onClick={() => setEditingTransaction(t)}
+                                    className="text-text-muted hover:text-primary transition-colors p-1.5 rounded-md hover:bg-primary/10"
+                                    title="Edit transaction"
+                                >
+                                    <Icons.Edit />
+                                </button>
                                 <button onClick={() => onDeleteTransaction(t.id)} className="text-text-muted hover:text-danger transition-colors p-1.5 rounded-md hover:bg-danger/10">
                                     <Icons.Trash />
                                 </button>
@@ -124,6 +155,22 @@ export const AllTransactionsView: React.FC<AllTransactionsViewProps> = ({ onClos
                     )) : <div className="text-center py-10 text-text-muted">No transactions match the current filters.</div>}
                 </div>
             </div>
+
+            <TransactionFormModal
+                isOpen={!!editingTransaction}
+                onClose={() => setEditingTransaction(null)}
+                type={editingTransaction?.type || null}
+                onSubmit={() => { }} // Not used in edit mode
+                onUpdate={async (id, updates) => {
+                    await onUpdateTransaction(id, updates);
+                    setEditingTransaction(null);
+                }}
+                transaction={editingTransaction}
+                expenseCategories={allCategories}
+                customCategories={customCategories}
+                budgets={budgets}
+                budgetPeriods={budgetPeriods}
+            />
         </div>
     );
 };

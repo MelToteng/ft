@@ -7,7 +7,7 @@ export interface Transaction {
   amount: number;
   date: string; // YYYY-MM-DD
   category: string;
-  budgetSubItemId?: number;
+  budget_sub_item_id?: number;
 }
 
 // New: A budget period with a custom name and date range.

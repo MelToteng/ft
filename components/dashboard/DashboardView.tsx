@@ -17,6 +17,7 @@ interface DashboardViewProps {
     periodIncome: number;
     periodExpenses: number;
     periodNet: number;
+    totalBalance: number;
     savingsRate: number;
     formatCurrency: (value: number) => string;
     setActiveModal: (modal: string | null) => void;
@@ -40,6 +41,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     periodIncome,
     periodExpenses,
     periodNet,
+    totalBalance,
     savingsRate,
     formatCurrency,
     setActiveModal,
@@ -68,6 +70,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         });
     }, [transactions, budgetPeriods, dashboardPeriodFilter]);
 
+    const transactionCounts = useMemo(() => {
+        const incomeCount = dashboardTransactions.filter(t => t.type === 'income').length;
+        const expenseCount = dashboardTransactions.filter(t => t.type === 'expense').length;
+        return { incomeCount, expenseCount };
+    }, [dashboardTransactions]);
+
     return (
         <>
 
@@ -77,13 +85,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <Button variant="secondary" onClick={() => setView('budgets')}>📊 Budget Planner</Button>
             </section>
 
-            <div className="flex justify-end items-center mb-6 animate-fade-in gap-4">
+            <div className="flex flex-wrap justify-end items-center mb-6 animate-fade-in gap-4">
                 <div>
                     <label htmlFor="dashboard-period-filter" className="text-sm font-medium text-text-secondary mr-3">
                         Showing data for:
                     </label>
                     <select
                         id="dashboard-period-filter"
+                        aria-label="Filter dashboard by time period"
                         value={dashboardPeriodFilter}
                         onChange={e => setDashboardPeriodFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
                         className="bg-surface-light border border-border rounded-xl px-4 py-2 text-text-primary text-sm focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
@@ -98,6 +107,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </label>
                     <select
                         id="currency-select"
+                        aria-label="Select currency"
                         value={currency}
                         onChange={e => handleSetCurrency(e.target.value)}
                         className="bg-surface-light border border-border rounded-xl px-4 py-2 text-text-primary text-sm focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
@@ -119,20 +129,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     label="Total Income"
                     value={formatCurrency(periodIncome)}
                     colorClass="bg-success"
-                    description="Sum of all income transactions in the selected period."
+                    description={`Sum of ${transactionCounts.incomeCount} income transactions in the selected period.`}
                 />
                 <StatCard
                     label="Total Expenses"
                     value={formatCurrency(periodExpenses)}
                     colorClass="bg-danger"
-                    description="Sum of all expense transactions in the selected period."
+                    description={`Sum of ${transactionCounts.expenseCount} expense transactions in the selected period.`}
                 />
-                <StatCard
-                    label="Current Balance"
-                    value={formatCurrency(periodNet)}
-                    colorClass="bg-primary"
-                    description="Total Income minus Total Expenses for the selected period."
-                />
+
+                {/* Conditionally show either Period Net OR Total Balance based on filter */}
+                {dashboardPeriodFilter === 'all' ? (
+                    <StatCard
+                        label="Total Balance"
+                        value={formatCurrency(totalBalance)}
+                        colorClass={totalBalance >= 0 ? "bg-primary" : "bg-danger"}
+                        description="Your cumulative balance across all time (all income minus all expenses)."
+                    />
+                ) : (
+                    <StatCard
+                        label="Period Net"
+                        value={formatCurrency(periodNet)}
+                        colorClass={periodNet >= 0 ? "bg-primary" : "bg-danger"}
+                        description="Net income minus expenses for this specific period only."
+                    />
+                )}
+
                 <StatCard
                     label="Savings Rate"
                     value={`${savingsRate.toFixed(1)}%`}
@@ -172,13 +194,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                     })
                                     .reduce((sum, t) => sum + t.amount, 0);
 
+                                const remaining = budget.amount - spent;
                                 const percentage = budget.amount > 0 ? Math.min((spent / budget.amount) * 100, 100) : 0;
                                 const progressClass = percentage >= 100 ? 'bg-danger' : percentage > 70 ? 'bg-warning' : 'bg-success';
+                                const remainingClass = remaining < 0 ? 'text-danger' : remaining < (budget.amount * 0.1) ? 'text-danger' : remaining < (budget.amount * 0.3) ? 'text-warning' : 'text-success';
+
                                 return (
                                     <div key={budget.category}>
                                         <div className="flex justify-between text-sm mb-1">
                                             <span className="font-semibold">{budget.category}</span>
-                                            <span className="text-text-muted">{formatCurrency(spent)} / {formatCurrency(budget.amount)}</span>
+                                            <div className="text-right">
+                                                <span className="text-text-muted">{formatCurrency(spent)} / {formatCurrency(budget.amount)}</span>
+                                                <span className={`ml-2 text-xs font-medium ${remainingClass}`}>
+                                                    ({remaining >= 0 ? 'Rem: ' : 'Over: '}{formatCurrency(Math.abs(remaining))})
+                                                </span>
+                                            </div>
                                         </div>
                                         <div className="w-full bg-surface-light rounded-full h-2.5">
                                             <div className={`${progressClass} h-2.5 rounded-full transition-all duration-500`} style={{ width: `${percentage}%` }}></div>
@@ -205,15 +235,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             .filter(b => b.budgetPeriodId === budgetDisplayPeriod.id)
                             .reduce((sum, b) => sum + b.amount, 0);
 
+                        const totalRemaining = totalBudgeted - totalSpent;
                         const percentage = totalBudgeted > 0 ? Math.min((totalSpent / totalBudgeted) * 100, 100) : 0;
-
-
                         const progressClass = totalSpent >= totalBudgeted ? 'text-red-500' : percentage > 70 ? 'text-amber-500' : 'text-green-500';
 
                         return (<div className="mt-4 border-t border-border pt-4">
                             <div className="flex justify-between text-sm mb-1">
                                 <span className="font-semibold">Totals</span>
-                                <span className={`${progressClass} text-text-muted`}>{formatCurrency(totalSpent)} / {formatCurrency(totalBudgeted)}</span>
+                                <div className="text-right">
+                                    <span className={`${progressClass} text-text-muted`}>{formatCurrency(totalSpent)} / {formatCurrency(totalBudgeted)}</span>
+                                    <span className={`ml-2 text-xs font-medium ${totalRemaining < 0 ? 'text-danger' : 'text-success'}`}>
+                                        ({totalRemaining >= 0 ? 'Rem: ' : 'Over: '}{formatCurrency(Math.abs(totalRemaining))})
+                                    </span>
+                                </div>
                             </div>
                         </div>);
                     })()}
