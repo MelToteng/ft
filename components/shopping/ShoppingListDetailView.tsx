@@ -6,6 +6,7 @@ import {
     shareShoppingList, addTransaction
 } from '../../services/supabaseService';
 import { Button, Icons, Modal, FormInput, FormSelect } from '../ui';
+import { findSimilarItems } from '../../utils/fuzzyMatch';
 
 interface ShoppingListDetailViewProps {
     listId: number;
@@ -28,11 +29,14 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
     const [itemName, setItemName] = useState('');
     const [itemQuantity, setItemQuantity] = useState('1');
     const [itemEstimate, setItemEstimate] = useState('');
+    const [similarItems, setSimilarItems] = useState<ShoppingListItem[]>([]);
+    const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
 
     // Sharing
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [shareToken, setShareToken] = useState('');
     const [shareEmail, setShareEmail] = useState('');
+    const [shareExpiration, setShareExpiration] = useState('1'); // Default 1 hour
 
     // Completion
     const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
@@ -59,6 +63,8 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
         setItemQuantity('1');
         setItemEstimate('');
         setIsItemModalOpen(true);
+        setSimilarItems([]);
+        setShowDuplicateWarning(false);
     };
 
     const openEditItemModal = (item: ShoppingListItem) => {
@@ -67,6 +73,50 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
         setItemQuantity(item.quantity.toString());
         setItemEstimate(item.estimated_cost.toString());
         setIsItemModalOpen(true);
+        setSimilarItems([]);
+        setShowDuplicateWarning(false);
+    };
+
+    const handleItemNameChange = (name: string) => {
+        setItemName(name);
+
+        if (!editingItem && name.trim().length > 2 && list?.items) {
+            const similar = findSimilarItems(name, list.items);
+            if (similar.length > 0 && similar[0].distance <= 2) {
+                setSimilarItems(similar.map(s => s.item));
+                setShowDuplicateWarning(true);
+            } else {
+                setSimilarItems([]);
+                setShowDuplicateWarning(false);
+            }
+        } else {
+            setSimilarItems([]);
+            setShowDuplicateWarning(false);
+        }
+    };
+
+    const handleMergeWithExisting = async (existingItem: ShoppingListItem) => {
+        try {
+            await updateShoppingListItem(existingItem.id, {
+                quantity: existingItem.quantity + (parseInt(itemQuantity) || 1)
+            });
+            setIsItemModalOpen(false);
+            loadList();
+        } catch (error) {
+            console.error('Error merging items:', error);
+        }
+    };
+
+    const handleFixSpelling = async (existingItem: ShoppingListItem) => {
+        try {
+            await updateShoppingListItem(existingItem.id, {
+                name: itemName // Update to new spelling
+            });
+            setIsItemModalOpen(false);
+            loadList();
+        } catch (error) {
+            console.error('Error fixing spelling:', error);
+        }
     };
 
     const handleSaveItem = async (e: React.FormEvent) => {
@@ -154,7 +204,10 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
     const handleShare = async () => {
         if (!list) return;
         try {
-            const token = await shareShoppingList(list.id, shareEmail || undefined);
+            const expiresInHours = shareExpiration === 'never'
+                ? 0 // 0 = never expires
+                : parseInt(shareExpiration);
+            const token = await shareShoppingList(list.id, shareEmail || undefined, expiresInHours);
             setShareToken(token);
         } catch (error) {
             console.error('Error sharing list:', error);
@@ -319,11 +372,53 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
                         label="Item Name"
                         id="modalItemName"
                         value={itemName}
-                        onChange={e => setItemName(e.target.value)}
+                        onChange={e => handleItemNameChange(e.target.value)}
                         placeholder="What do you need?"
                         required
                         autoFocus
                     />
+
+                    {showDuplicateWarning && similarItems.length > 0 && (
+                        <div className="bg-warning/10 border border-warning rounded-lg p-3">
+                            <div className="flex items-start gap-2">
+                                <Icons.AlertCircle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-warning mb-1">
+                                        Similar item found
+                                    </p>
+                                    <p className="text-xs text-text-secondary mb-2">
+                                        "{similarItems[0].name}" is already in your list (×{similarItems[0].quantity})
+                                    </p>
+                                    <div className="flex gap-2 flex-wrap">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() => handleMergeWithExisting(similarItems[0])}
+                                        >
+                                            Increase Quantity
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() => handleFixSpelling(similarItems[0])}
+                                        >
+                                            Fix Spelling
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => setShowDuplicateWarning(false)}
+                                        >
+                                            Add Anyway
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                         <FormInput
@@ -372,9 +467,24 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
                     <p className="text-sm text-text-secondary">Share this list with others to collaborate or let them view it.</p>
 
                     {!shareToken ? (
-                        <Button onClick={handleShare} className="w-full">
-                            Generate Share Link
-                        </Button>
+                        <>
+                            <FormSelect
+                                label="Link Expires In"
+                                id="shareExpiration"
+                                value={shareExpiration}
+                                onChange={e => setShareExpiration(e.target.value)}
+                            >
+                                <option value="1">1 Hour (Default)</option>
+                                <option value="6">6 Hours</option>
+                                <option value="24">24 Hours</option>
+                                <option value="168">7 Days</option>
+                                <option value="0">Never</option>
+                            </FormSelect>
+
+                            <Button onClick={handleShare} className="w-full">
+                                Generate Share Link
+                            </Button>
+                        </>
                     ) : (
                         <div className="bg-surface-light p-4 rounded-xl border border-border break-all">
                             <p className="text-xs text-text-muted mb-1">Share Link:</p>

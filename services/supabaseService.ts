@@ -763,13 +763,18 @@ export const deleteShoppingListItem = async (id: number): Promise<void> => {
 
 // --- SHOPPING LIST SHARING ---
 
-export const shareShoppingList = async (listId: number, email?: string): Promise<string> => {
+export const shareShoppingList = async (
+    listId: number,
+    email?: string,
+    expiresInHours: number = 1 // Default: 1 hour
+): Promise<string> => {
     // Generate a unique token
     const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
-    // Set expiration to 7 days from now (configurable)
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    // Calculate expiration
+    const expiresAt = expiresInHours > 0
+        ? new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString()
+        : null; // null = never expires
 
     const { error } = await supabase
         .from('shopping_list_shares')
@@ -777,7 +782,7 @@ export const shareShoppingList = async (listId: number, email?: string): Promise
             list_id: listId,
             token: token,
             shared_with_email: email,
-            expires_at: expiresAt.toISOString()
+            expires_at: expiresAt
         }]);
 
     if (error) throw error;
@@ -875,3 +880,25 @@ export const markNotificationRead = async (id: number): Promise<void> => {
 
     if (error) throw error;
 };
+
+export const notifyListViewed = async (token: string): Promise<boolean> => {
+    // Capture viewer details
+    const viewerDetails = {
+        browser: navigator.userAgent,
+        language: navigator.language,
+        timestamp: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+        .rpc('notify_list_viewed', {
+            token_input: token,
+            viewer_details: viewerDetails
+        });
+
+    if (error) {
+        console.error('Error notifying list view:', error);
+        return false;
+    }
+    return data as boolean;
+};
+
