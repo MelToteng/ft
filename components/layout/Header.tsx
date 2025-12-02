@@ -3,6 +3,7 @@ import { MoreMenu } from '../dashboard/MoreMenu';
 import { useTheme } from '../../context/ThemeContext';
 import { Icons } from '../ui';
 import { NotificationBell } from './NotificationBell';
+import { useInstallPrompt } from '../../hooks/useInstallPrompt';
 
 interface HeaderProps {
   onSignOut: () => void;
@@ -26,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   isInsightLoading = false,
 }) => {
   const { theme, toggleTheme } = useTheme();
+  const { isInstallable, promptInstall } = useInstallPrompt();
 
   return (
     <header className="my-8 animate-slide-down relative px-4">
@@ -42,9 +44,20 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="w-10 md:w-12 flex justify-start">
           <NotificationBell />
         </div>
+        {isInstallable && (
+          <div className="w-10 md:w-12 flex justify-start">
+            <button
+              onClick={promptInstall}
+              className="p-2 rounded-full bg-surface-light text-text-secondary hover:text-primary transition-colors hover:bg-surface border border-border-light shadow-custom"
+              title="Install App"
+            >
+              <Icons.Download className="w-5 h-5" />
+            </button>
+          </div>
+        )}
         <div className="text-center flex-1">
           <h1 className="text-3xl md:text-6xl font-bold bg-gradient-to-r from-primary to-secondary text-transparent bg-clip-text mb-2">
-            Finance Tracker
+            Budget Tracker
           </h1>
           <p className="text-text-secondary text-sm md:text-lg">Modern budgeting with intelligent insights</p>
         </div>
