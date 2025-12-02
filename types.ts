@@ -103,6 +103,7 @@ export interface ShoppingListItem {
   id: number;
   list_id: number;
   name: string;
+  quantity: number;
   estimated_cost: number;
   actual_cost: number;
   is_purchased: boolean;
