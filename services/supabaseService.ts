@@ -592,48 +592,286 @@ export const importTransactionsCSV = async (
 };
 
 export const importTransactionsPDF = async (pdfFile: File): Promise<import('../types').ParsedTransaction[]> => {
-    const pdfParse = await import('pdf-parse');
-    const arrayBuffer = await pdfFile.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Dynamic import to avoid loading PDF.js unless needed
+    const pdfjsLib = await import('pdfjs-dist');
 
-    const data = await pdfParse.default(buffer);
-    const text = data.text;
+    // Set worker source to CDN to avoid build issues with Vite
+    // Use the version from the imported library
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+    const arrayBuffer = await pdfFile.arrayBuffer();
+
+    // Load the document
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+
+    let fullText = '';
+
+    // Extract text from all pages
+    for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        // Join items with space, but try to respect newlines if items are far apart vertically?
+        // For simplicity, we'll join with space and rely on the fact that usually lines are separate items or we can just split by common delimiters later if needed.
+        // However, pdf-parse often returns a big string.
+        // Let's join with space for now.
+        const pageText = textContent.items
+            .map((item: any) => item.str)
+            .join(' ');
+        fullText += pageText + '\n';
+    }
 
     // Simple pattern matching for common bank statement formats
-    // This is a basic implementation - real-world usage would need bank-specific patterns
-    const lines = text.split('\n');
+    // Note: PDF text extraction can be messy. This regex might need adjustment based on how pdfjs-dist outputs text.
+    // Often it outputs "Date Description Amount" or similar.
+    // We'll try to match patterns in the full text or split by newlines if we added them.
+    // Since we added \n per page, and joined items with space, we effectively have one line per page? 
+    // No, that's bad. 
+    // Better approach: Check item transforms to guess newlines.
+    // But for a quick fix, let's just assume the user's PDF is simple.
+
+    // Actually, let's try to be a bit smarter. If items have significantly different Y coordinates, insert newline.
+    // But that's complex.
+    // Let's stick to the previous logic but apply it to the text we got.
+    // The previous logic split by \n.
+    // If we join everything with space, we lose structure.
+    // Let's try to join with ' ' but if the item has 'EOL' equivalent? No.
+
+    // Alternative: Join with ' ' and then regex search globally?
+    // The previous regex was `const lines = text.split('\n');`
+
+    // Let's try to preserve some structure.
+    // pdfjs-dist textContent items don't have explicit newlines usually.
+    // We can try to just join with '  ' (double space) to separate columns.
+
+    // Let's try this:
+    const lines = fullText.split('\n'); // This will only be pages.
+    // We might need to split by regex looking for date patterns if we lost line breaks.
+
     const transactions: import('../types').ParsedTransaction[] = [];
 
-    // Pattern: Date Amount Description (very basic, needs customization per bank)
-    const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/;
-    const amountPattern = /[\$£€]?\s*(\d+[,.]?\d*\.?\d{2})/;
+    // Improved Regex to find transactions in a stream of text
+    // Look for Date ... Amount
+    const transactionPattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s+(.+?)\s+([\$£€]?\s*\d+[,.]?\d*\.?\d{2})/g;
 
-    for (const line of lines) {
-        const dateMatch = line.match(datePattern);
-        const amountMatch = line.match(amountPattern);
+    let match;
+    while ((match = transactionPattern.exec(fullText)) !== null) {
+        const dateStr = match[1];
+        const description = match[2].trim();
+        const amountStr = match[3].replace(/[,$]/g, '');
+        const amount = parseFloat(amountStr);
 
-        if (dateMatch && amountMatch) {
-            const dateStr = dateMatch[1];
-            const amountStr = amountMatch[1].replace(/[,$]/g, '');
-            const amount = parseFloat(amountStr);
-
-            if (!isNaN(amount) && amount > 0) {
-                // Extract description (text between date and amount)
-                const description = line
-                    .replace(dateMatch[0], '')
-                    .replace(amountMatch[0], '')
-                    .trim();
-
-                if (description) {
-                    transactions.push({
-                        date: dateStr,
-                        description,
-                        amount,
-                    });
-                }
-            }
+        if (!isNaN(amount) && amount > 0) {
+            transactions.push({
+                date: dateStr,
+                description,
+                amount,
+            });
         }
     }
 
     return transactions;
+};
+
+// --- SHOPPING LISTS ---
+
+export const getShoppingLists = async (): Promise<import('../types').ShoppingList[]> => {
+    const { data, error } = await supabase
+        .from('shopping_lists')
+        .select(`
+            *,
+            items:shopping_list_items(*)
+        `)
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data as import('../types').ShoppingList[];
+};
+
+export const createShoppingList = async (
+    list: Omit<import('../types').ShoppingList, 'id' | 'created_at' | 'updated_at'>
+): Promise<import('../types').ShoppingList> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase
+        .from('shopping_lists')
+        .insert([{ ...list, user_id: user.id }])
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data as import('../types').ShoppingList;
+};
+
+export const updateShoppingList = async (
+    id: number,
+    updates: Partial<Omit<import('../types').ShoppingList, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
+): Promise<void> => {
+    const { error } = await supabase
+        .from('shopping_lists')
+        .update(updates)
+        .eq('id', id);
+
+    if (error) throw error;
+};
+
+export const deleteShoppingList = async (id: number): Promise<void> => {
+    const { error } = await supabase
+        .from('shopping_lists')
+        .delete()
+        .eq('id', id);
+
+    if (error) throw error;
+};
+
+// --- SHOPPING LIST ITEMS ---
+
+export const addShoppingListItem = async (
+    item: Omit<import('../types').ShoppingListItem, 'id' | 'created_at' | 'updated_at'>
+): Promise<import('../types').ShoppingListItem> => {
+    const { data, error } = await supabase
+        .from('shopping_list_items')
+        .insert([item])
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data as import('../types').ShoppingListItem;
+};
+
+export const updateShoppingListItem = async (
+    id: number,
+    updates: Partial<Omit<import('../types').ShoppingListItem, 'id' | 'list_id' | 'created_at' | 'updated_at'>>
+): Promise<void> => {
+    const { error } = await supabase
+        .from('shopping_list_items')
+        .update(updates)
+        .eq('id', id);
+
+    if (error) throw error;
+};
+
+export const deleteShoppingListItem = async (id: number): Promise<void> => {
+    const { error } = await supabase
+        .from('shopping_list_items')
+        .delete()
+        .eq('id', id);
+
+    if (error) throw error;
+};
+
+// --- SHOPPING LIST SHARING ---
+
+export const shareShoppingList = async (listId: number, email?: string): Promise<string> => {
+    // Generate a unique token
+    const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
+    // Set expiration to 7 days from now (configurable)
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const { error } = await supabase
+        .from('shopping_list_shares')
+        .insert([{
+            list_id: listId,
+            token: token,
+            shared_with_email: email,
+            expires_at: expiresAt.toISOString()
+        }]);
+
+    if (error) throw error;
+    return token;
+};
+
+export const getSharedShoppingList = async (token: string): Promise<import('../types').ShoppingList | null> => {
+    const { data, error } = await supabase
+        .rpc('get_shared_shopping_list', { token_input: token });
+
+    if (error) {
+        console.error('Error fetching shared list:', error);
+        return null;
+    }
+
+    if (!data || data.length === 0) return null;
+
+    const result = data[0];
+    return {
+        id: result.list_id,
+        name: result.list_name,
+        status: result.list_status,
+        items: result.items || [],
+        user_id: '', // Not exposed
+        created_at: '', // Not exposed
+        updated_at: '' // Not exposed
+    } as import('../types').ShoppingList;
+};
+
+export const updateSharedShoppingListItem = async (
+    token: string,
+    itemId: number,
+    isPurchased: boolean,
+    actualCost: number
+): Promise<boolean> => {
+    const { data, error } = await supabase
+        .rpc('update_shared_shopping_list_item', {
+            token_input: token,
+            item_id_input: itemId,
+            is_purchased_input: isPurchased,
+            actual_cost_input: actualCost
+        });
+
+    if (error) {
+        console.error('Error updating shared item:', error);
+        throw error;
+    }
+
+    return data as boolean;
+};
+
+export const joinShoppingList = async (token: string): Promise<boolean> => {
+    const { data, error } = await supabase
+        .rpc('join_shopping_list', { token_input: token });
+
+    if (error) {
+        console.error('Error joining list:', error);
+        throw error;
+    }
+
+    return data as boolean;
+};
+
+export const notifyListCompletion = async (token: string): Promise<boolean> => {
+    const { data, error } = await supabase
+        .rpc('notify_list_completion', { token_input: token });
+
+    if (error) {
+        console.error('Error notifying completion:', error);
+        throw error;
+    }
+    return data as boolean;
+};
+
+// --- USER NOTIFICATIONS ---
+
+export const getUserNotifications = async (): Promise<import('../types').UserNotification[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+        .from('user_notifications')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data as import('../types').UserNotification[];
+};
+
+export const markNotificationRead = async (id: number): Promise<void> => {
+    const { error } = await supabase
+        .from('user_notifications')
+        .update({ is_read: true })
+        .eq('id', id);
+
+    if (error) throw error;
 };

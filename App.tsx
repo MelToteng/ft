@@ -32,6 +32,8 @@ import { DashboardView } from './components/dashboard/DashboardView';
 import { BudgetManagementView } from './components/budget/BudgetManagementView';
 import { AllTransactionsView } from './components/transactions/AllTransactionsView';
 import { RecurringTransactionsView } from './components/transactions/RecurringTransactionsView';
+import { ShoppingListView } from './components/shopping/ShoppingListView';
+import { ShoppingListDetailView } from './components/shopping/ShoppingListDetailView';
 import { TransactionFormModal } from './components/transactions/TransactionFormModal';
 import { RecurringTransactionModal } from './components/transactions/RecurringTransactionModal';
 import { ImportExportModal } from './components/transactions/ImportExportModal';
@@ -55,7 +57,8 @@ function AppContent() {
     const [isInsightLoading, setIsInsightLoading] = useState(false);
     const [insightError, setInsightError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [view, setView] = useState<'dashboard' | 'budgets' | 'transactions' | 'recurring'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'budgets' | 'transactions' | 'recurring' | 'shopping-list' | 'shopping-list-detail'>('dashboard');
+    const [selectedListId, setSelectedListId] = useState<number | undefined>(undefined);
     const [dashboardPeriodFilter, setDashboardPeriodFilter] = useState<number | 'all'>('all');
     const [isBalanceTrendModalOpen, setIsBalanceTrendModalOpen] = useState(false);
     const [currency, setCurrency] = useState('USD');
@@ -417,6 +420,7 @@ function AppContent() {
                     onCategories={() => setActiveModal('categories')}
                     onGetInsight={handleGetInsight}
                     onViewAllTransactions={() => setView('transactions')}
+                    onShoppingLists={() => setView('shopping-list')}
                     isInsightLoading={isInsightLoading}
                 />
 
@@ -481,6 +485,26 @@ function AppContent() {
                         onDeleteRecurring={handleDeleteRecurring}
                         expenseCategories={activeBudgetCategories}
                         formatCurrency={formatCurrency}
+                    />
+                )}
+
+                {view === 'shopping-list' && (
+                    <ShoppingListView
+                        onNavigate={(nextView, listId) => {
+                            if (listId) setSelectedListId(listId);
+                            setView(nextView);
+                        }}
+                        formatCurrency={formatCurrency}
+                    />
+                )}
+
+                {view === 'shopping-list-detail' && selectedListId && (
+                    <ShoppingListDetailView
+                        listId={selectedListId}
+                        onBack={() => setView('shopping-list')}
+                        formatCurrency={formatCurrency}
+                        budgets={budgets}
+                        budgetPeriods={budgetPeriods}
                     />
                 )}
             </div>

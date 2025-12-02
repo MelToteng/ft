@@ -2,7 +2,12 @@ import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Button, FormInput, Icons } from './ui';
 
-export const Auth = () => {
+interface AuthProps {
+    viewMode?: 'full' | 'embedded';
+    onSuccess?: () => void;
+}
+
+export const Auth: React.FC<AuthProps> = ({ viewMode = 'full', onSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -21,6 +26,7 @@ export const Auth = () => {
                     password,
                 });
                 if (error) throw error;
+                if (onSuccess) onSuccess();
             } else {
                 const { error } = await supabase.auth.signUp({
                     email,
@@ -28,6 +34,8 @@ export const Auth = () => {
                 });
                 if (error) throw error;
                 setMessage({ text: 'Check your email for the login link!', type: 'success' });
+                // Don't call onSuccess for signup as they need to verify email usually, 
+                // unless auto-confirm is on. But 'Check email' implies wait.
             }
         } catch (error: any) {
             setMessage({ text: error.message, type: 'error' });
@@ -36,13 +44,23 @@ export const Auth = () => {
         }
     };
 
+    const containerClasses = viewMode === 'full'
+        ? "flex flex-col items-center justify-center min-h-screen bg-background p-4"
+        : "w-full";
+
+    const cardClasses = viewMode === 'full'
+        ? "w-full max-w-md bg-surface/50 backdrop-blur-xl p-8 rounded-4xl border border-border shadow-2xl animate-fade-in"
+        : "w-full animate-fade-in";
+
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
-            <div className="w-full max-w-md bg-surface/50 backdrop-blur-xl p-8 rounded-4xl border border-border shadow-2xl animate-fade-in">
+        <div className={containerClasses}>
+            <div className={cardClasses}>
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 text-primary mb-4">
-                        <Icons.Sparkles className="w-8 h-8" />
-                    </div>
+                    {viewMode === 'full' && (
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 text-primary mb-4">
+                            <Icons.Sparkles className="w-8 h-8" />
+                        </div>
+                    )}
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary text-transparent bg-clip-text">
                         {isLogin ? 'Welcome Back' : 'Create Account'}
                     </h1>
