@@ -22,9 +22,12 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
     const [loading, setLoading] = useState(true);
     const [shoppingMode, setShoppingMode] = useState(false);
 
-    // Item management
-    const [newItemName, setNewItemName] = useState('');
-    const [newItemEstimate, setNewItemEstimate] = useState('');
+    // Item management modal
+    const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+    const [editingItem, setEditingItem] = useState<ShoppingListItem | null>(null);
+    const [itemName, setItemName] = useState('');
+    const [itemQuantity, setItemQuantity] = useState('1');
+    const [itemEstimate, setItemEstimate] = useState('');
 
     // Sharing
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -50,23 +53,49 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
         }
     };
 
-    const handleAddItem = async (e: React.FormEvent) => {
+    const openAddItemModal = () => {
+        setEditingItem(null);
+        setItemName('');
+        setItemQuantity('1');
+        setItemEstimate('');
+        setIsItemModalOpen(true);
+    };
+
+    const openEditItemModal = (item: ShoppingListItem) => {
+        setEditingItem(item);
+        setItemName(item.name);
+        setItemQuantity(item.quantity.toString());
+        setItemEstimate(item.estimated_cost.toString());
+        setIsItemModalOpen(true);
+    };
+
+    const handleSaveItem = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newItemName.trim() || !list) return;
+        if (!itemName.trim() || !list) return;
 
         try {
-            await addShoppingListItem({
-                list_id: list.id,
-                name: newItemName,
-                estimated_cost: parseFloat(newItemEstimate) || 0,
-                actual_cost: 0,
-                is_purchased: false
-            });
-            setNewItemName('');
-            setNewItemEstimate('');
+            if (editingItem) {
+                // Update existing item
+                await updateShoppingListItem(editingItem.id, {
+                    name: itemName,
+                    quantity: parseInt(itemQuantity) || 1,
+                    estimated_cost: parseFloat(itemEstimate) || 0
+                });
+            } else {
+                // Add new item
+                await addShoppingListItem({
+                    list_id: list.id,
+                    name: itemName,
+                    quantity: parseInt(itemQuantity) || 1,
+                    estimated_cost: parseFloat(itemEstimate) || 0,
+                    actual_cost: 0,
+                    is_purchased: false
+                });
+            }
+            setIsItemModalOpen(false);
             loadList();
         } catch (error) {
-            console.error('Error adding item:', error);
+            console.error('Error saving item:', error);
         }
     };
 
@@ -178,8 +207,8 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
                         <h1 className="text-3xl font-bold text-text-primary">{list.name}</h1>
                     </div>
                     <div className="flex gap-4 text-sm text-text-secondary">
-                        <span>Estimated: <span className="font-semibold text-text-primary">{formatCurrency(totals.estimated)}</span></span>
-                        <span>Actual: <span className={`font-semibold ${totals.actual > totals.estimated ? 'text-danger' : 'text-success'}`}>{formatCurrency(totals.actual)}</span></span>
+                        <span>Estimated: <span className="font-semibold text-text-primary">{formatCurrency(totals.estimated)} | {list.items.length} items</span></span>
+                        <span>Actual: <span className={`font-semibold ${totals.actual > totals.estimated ? 'text-danger' : 'text-success'}`}>{formatCurrency(totals.actual)} | {list.items.filter(i => i.is_purchased).length} items</span></span>
                     </div>
                 </div>
                 <div className="flex gap-3">
@@ -201,33 +230,11 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
             </header>
 
             {!shoppingMode && (
-                <form onSubmit={handleAddItem} className="mb-8 bg-surface p-4 rounded-2xl border border-border flex gap-4 items-end">
-                    <div className="flex-1">
-                        <FormInput
-                            label="Item Name"
-                            id="itemName"
-                            value={newItemName}
-                            onChange={e => setNewItemName(e.target.value)}
-                            placeholder="What do you need?"
-                            className="!mb-0"
-                        />
-                    </div>
-                    <div className="w-32">
-                        <FormInput
-                            label="Est. Cost"
-                            id="itemCost"
-                            type="number"
-                            step="0.01"
-                            value={newItemEstimate}
-                            onChange={e => setNewItemEstimate(e.target.value)}
-                            placeholder="0.00"
-                            className="!mb-0"
-                        />
-                    </div>
-                    <Button type="submit" disabled={!newItemName.trim()}>
-                        <Icons.Plus /> Add
+                <div className="mb-8">
+                    <Button onClick={openAddItemModal} className="w-full md:w-auto">
+                        <Icons.Plus /> Add Item
                     </Button>
-                </form>
+                </div>
             )}
 
             <div className="space-y-3">
@@ -246,9 +253,16 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
                         </div>
 
                         <div className="flex-1">
-                            <p className={`font-medium ${item.is_purchased ? 'text-text-muted line-through' : 'text-text-primary'}`}>
-                                {item.name}
-                            </p>
+                            <div className="flex items-center gap-2">
+                                <p className={`font-medium ${item.is_purchased ? 'text-text-muted line-through' : 'text-text-primary'}`}>
+                                    {item.name}
+                                </p>
+                                {item.quantity > 1 && (
+                                    <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full font-semibold">
+                                        ×{item.quantity}
+                                    </span>
+                                )}
+                            </div>
                             {!shoppingMode && (
                                 <p className="text-xs text-text-secondary">Est: {formatCurrency(item.estimated_cost)}</p>
                             )}
@@ -268,12 +282,22 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
                                 )}
                             </div>
                         ) : (
-                            <button
-                                onClick={() => handleDeleteItem(item.id)}
-                                className="text-text-muted hover:text-danger p-2"
-                            >
-                                <Icons.Trash />
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => openEditItemModal(item)}
+                                    className="text-text-muted hover:text-primary p-2"
+                                    title="Edit item"
+                                >
+                                    <Icons.Edit />
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteItem(item.id)}
+                                    className="text-text-muted hover:text-danger p-2"
+                                    title="Delete item"
+                                >
+                                    <Icons.Trash />
+                                </button>
+                            </div>
                         )}
                     </div>
                 ))}
@@ -284,6 +308,60 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
                     </div>
                 )}
             </div>
+
+            <Modal
+                isOpen={isItemModalOpen}
+                onClose={() => setIsItemModalOpen(false)}
+                title={editingItem ? 'Edit Item' : 'Add Item'}
+            >
+                <form onSubmit={handleSaveItem} className="space-y-4">
+                    <FormInput
+                        label="Item Name"
+                        id="modalItemName"
+                        value={itemName}
+                        onChange={e => setItemName(e.target.value)}
+                        placeholder="What do you need?"
+                        required
+                        autoFocus
+                    />
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormInput
+                            label="Quantity"
+                            id="modalItemQuantity"
+                            type="number"
+                            min="1"
+                            value={itemQuantity}
+                            onChange={e => setItemQuantity(e.target.value)}
+                            placeholder="1"
+                        />
+
+                        <FormInput
+                            label="Estimated Cost"
+                            id="modalItemCost"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={itemEstimate}
+                            onChange={e => setItemEstimate(e.target.value)}
+                            placeholder="0.00"
+                        />
+                    </div>
+
+                    <div className="flex gap-3 justify-end">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setIsItemModalOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={!itemName.trim()}>
+                            {editingItem ? 'Save Changes' : 'Add Item'}
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
 
             <Modal
                 isOpen={isShareModalOpen}
