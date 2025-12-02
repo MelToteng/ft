@@ -204,9 +204,16 @@ export const SharedShoppingListView: React.FC<SharedShoppingListViewProps> = ({ 
                                 </div>
 
                                 <div className="flex-1">
-                                    <p className={`font-medium ${item.is_purchased ? 'text-text-muted line-through' : 'text-text-primary'}`}>
-                                        {item.name}
-                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <p className={`font-medium ${item.is_purchased ? 'text-text-muted line-through' : 'text-text-primary'}`}>
+                                            {item.name}
+                                        </p>
+                                        {item.quantity > 1 && (
+                                            <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full font-semibold">
+                                                ×{item.quantity}
+                                            </span>
+                                        )}
+                                    </div>
                                     <p className="text-xs text-text-secondary">Est: {formatCurrency(item.estimated_cost)}</p>
                                 </div>
 
