@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ShoppingList, ShoppingListItem } from '../../types';
-import { getSharedShoppingList, updateSharedShoppingListItem, joinShoppingList, notifyListCompletion } from '../../services/supabaseService';
+import { getSharedShoppingList, updateSharedShoppingListItem, joinShoppingList, notifyListCompletion, notifyListViewed } from '../../services/supabaseService';
 import { supabase } from '../../services/supabaseClient';
 import { Icons, Button, Modal } from '../ui';
 import { Auth } from '../Auth';
@@ -32,6 +32,11 @@ export const SharedShoppingListView: React.FC<SharedShoppingListViewProps> = ({ 
         });
 
         loadList();
+
+        // Notify owner that list was viewed
+        notifyListViewed(token).catch(err =>
+            console.error('Failed to notify view:', err)
+        );
 
         return () => subscription.unsubscribe();
     }, [token]);
@@ -122,11 +127,12 @@ export const SharedShoppingListView: React.FC<SharedShoppingListViewProps> = ({ 
     );
 
     if (error) return (
-        <div className="min-h-screen flex items-center justify-center bg-background text-text-primary">
-            <div className="text-center p-8 bg-surface rounded-2xl border border-border shadow-lg">
-                <Icons.AlertCircle className="w-12 h-12 text-danger mx-auto mb-4" />
-                <h2 className="text-xl font-bold mb-2">Error</h2>
-                <p className="text-text-secondary">{error}</p>
+        <div className="min-h-screen flex items-center justify-center bg-background text-text-primary p-4">
+            <div className="text-center p-8 bg-surface rounded-2xl border border-border shadow-lg max-w-md">
+                <Icons.AlertCircle className="w-16 h-16 text-danger mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Link Expired</h2>
+                <p className="text-text-secondary mb-4">{error}</p>
+                <p className="text-sm text-text-muted">This share link has expired or is no longer valid. Please ask the list owner to generate a new link.</p>
             </div>
         </div>
     );
