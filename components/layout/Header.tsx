@@ -2,6 +2,7 @@ import React from 'react';
 import { MoreMenu } from '../dashboard/MoreMenu';
 import { useTheme } from '../../context/ThemeContext';
 import { Icons } from '../ui';
+import { NotificationBell } from './NotificationBell';
 
 interface HeaderProps {
   onSignOut: () => void;
@@ -10,6 +11,7 @@ interface HeaderProps {
   onCategories: () => void;
   onGetInsight: () => void;
   onViewAllTransactions: () => void;
+  onShoppingLists: () => void;
   isInsightLoading?: boolean;
 }
 
@@ -20,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   onCategories,
   onGetInsight,
   onViewAllTransactions,
+  onShoppingLists,
   isInsightLoading = false,
 }) => {
   const { theme, toggleTheme } = useTheme();
@@ -36,6 +39,9 @@ export const Header: React.FC<HeaderProps> = ({
             {theme === 'light' ? <Icons.Moon className="w-5 h-5" /> : <Icons.Sun className="w-5 h-5" />}
           </button>
         </div>
+        <div className="w-10 md:w-12 flex justify-start">
+          <NotificationBell />
+        </div>
         <div className="text-center flex-1">
           <h1 className="text-3xl md:text-6xl font-bold bg-gradient-to-r from-primary to-secondary text-transparent bg-clip-text mb-2">
             Finance Tracker
@@ -50,6 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
             onGetInsight={onGetInsight}
             onViewAllTransactions={onViewAllTransactions}
             onSignOut={onSignOut}
+            onShoppingLists={onShoppingLists}
             isInsightLoading={isInsightLoading}
           />
         </div>

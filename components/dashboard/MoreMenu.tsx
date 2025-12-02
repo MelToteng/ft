@@ -9,6 +9,7 @@ interface MoreMenuProps {
     onViewAllTransactions: () => void;
     isInsightLoading?: boolean;
     onSignOut: () => void;
+    onShoppingLists: () => void;
 }
 
 export const MoreMenu: React.FC<MoreMenuProps> = ({
@@ -19,6 +20,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
     onViewAllTransactions,
     isInsightLoading = false,
     onSignOut,
+    onShoppingLists,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -66,6 +68,14 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
                         </button>
 
                         <button
+                            onClick={() => handleMenuClick(onShoppingLists)}
+                            className="w-full text-left px-4 py-3 hover:bg-surface-light transition-colors flex items-center gap-3 text-text-primary"
+                        >
+                            <span className="text-lg">🛒</span>
+                            <span className="font-medium">Shopping Lists</span>
+                        </button>
+
+                        <button disabled={true}
                             onClick={() => handleMenuClick(onImportExport)}
                             className="w-full text-left px-4 py-3 hover:bg-surface-light transition-colors flex items-center gap-3 text-text-primary"
                         >

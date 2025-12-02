@@ -85,3 +85,48 @@ export interface ParsedTransaction {
   type?: TransactionType;
   category?: string;
 }
+
+// Shopping List Types
+export interface ShoppingList {
+  id: number;
+  user_id: string;
+  name: string;
+  status: 'active' | 'completed' | 'archived';
+  budget_item_id?: number;
+  budget_sub_item_id?: number;
+  created_at: string;
+  updated_at: string;
+  items?: ShoppingListItem[];
+}
+
+export interface ShoppingListItem {
+  id: number;
+  list_id: number;
+  name: string;
+  estimated_cost: number;
+  actual_cost: number;
+  is_purchased: boolean;
+  purchased_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShoppingListShare {
+  id: number;
+  list_id: number;
+  token: string;
+  shared_with_email?: string;
+  expires_at?: string;
+  created_at: string;
+}
+
+export interface UserNotification {
+  id: number;
+  user_id: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  type: string;
+  link?: string;
+  created_at: string;
+}
