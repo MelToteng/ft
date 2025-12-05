@@ -57,7 +57,7 @@ Run the SQL script provided in `sql/` folder in your Supabase project's SQL Edit
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) to view it in the browser.
+Open [https://mfintrk.netlify.app/] to view deployed version on the browser.
 
 ## 📄 License
 
