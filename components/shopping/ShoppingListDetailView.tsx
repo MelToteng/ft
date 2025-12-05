@@ -488,7 +488,7 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
                 </div>
             )}
 
-            <div className={`space-y-3 ${shoppingMode ? 'max-h-[60vh] overflow-y-auto pr-2' : ''}`}>
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
                 {list.items?.filter(item =>
                     !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase())
                 ).map(item => (
