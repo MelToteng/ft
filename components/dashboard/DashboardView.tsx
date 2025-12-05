@@ -230,7 +230,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <Button variant="secondary" onClick={() => setActiveModal('income')} className="px-3 py-2">
                         <Icons.Plus /> <span className="hidden sm:inline">Add </span>Income
                     </Button>
-                    <Button variant="secondary" onClick={() => setActiveModal('budget')} className="px-3 py-2">
+                    <Button variant="secondary" onClick={() => setView('budgets')} className="px-3 py-2">
                         <Icons.Chart /> <span className="hidden sm:inline">Budget </span>Planner
                     </Button>
                 </div>
