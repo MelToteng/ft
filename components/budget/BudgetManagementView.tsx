@@ -30,6 +30,7 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
     const [subItemsValues, setSubItemsValues] = useState<Record<string, { name: string; amount: number }[]>>({});
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+    const [copyFromPeriodId, setCopyFromPeriodId] = useState<number | ''>('');
 
     useEffect(() => {
         if (budgetPeriods.length > 0 && !activePeriodId) {
@@ -69,13 +70,45 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
             setPeriodName('');
             setStartDate(today.toISOString().slice(0, 10));
             setEndDate(nextMonth.toISOString().slice(0, 10));
-            setBudgetValues({});
-            setSubItemsValues({});
+
+            // Only reset budgets if not copying from another period
+            if (!copyFromPeriodId) {
+                setBudgetValues({});
+                setSubItemsValues({});
+            }
         }
-    }, [activePeriodId, budgetPeriods, budgets]);
+    }, [activePeriodId, budgetPeriods, budgets, copyFromPeriodId]);
 
     const handleSelectPeriod = (id: number | 'new') => {
         setActivePeriodId(id);
+        if (id === 'new') {
+            setCopyFromPeriodId('');
+        }
+    };
+
+    const handleCopyFromChange = (periodId: number | '') => {
+        setCopyFromPeriodId(periodId);
+
+        if (typeof periodId === 'number') {
+            // Copy budgets from selected period
+            const periodBudgets = budgets.filter(b => b.budgetPeriodId === periodId);
+            const copiedValues: Record<string, number> = {};
+            const copiedSubItems: Record<string, { name: string; amount: number }[]> = {};
+
+            periodBudgets.forEach(b => {
+                copiedValues[b.category] = b.amount;
+                if (b.subItems) {
+                    copiedSubItems[b.category] = b.subItems.map(s => ({ name: s.name, amount: s.amount }));
+                }
+            });
+
+            setBudgetValues(copiedValues);
+            setSubItemsValues(copiedSubItems);
+        } else {
+            // Reset to empty if "None" is selected
+            setBudgetValues({});
+            setSubItemsValues({});
+        }
     };
 
     const handleSave = async () => {
@@ -261,6 +294,26 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
                                     <FormInput label="Start Date" id="startDate" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
                                     <FormInput label="End Date" id="endDate" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
                                 </div>
+
+                                {activePeriodId === 'new' && budgetPeriods.length > 0 && (
+                                    <div className="mt-4">
+                                        <label htmlFor="copyFrom" className="block text-sm font-medium text-text-primary mb-2">
+                                            Copy budgets from (optional)
+                                        </label>
+                                        <select
+                                            id="copyFrom"
+                                            value={copyFromPeriodId}
+                                            onChange={e => handleCopyFromChange(e.target.value === '' ? '' : Number(e.target.value))}
+                                            className="w-full bg-surface border border-border rounded-xl px-4 py-2 text-text-primary focus:ring-2 focus:ring-primary focus:outline-none"
+                                        >
+                                            <option value="">None (Start fresh)</option>
+                                            {budgetPeriods.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                        </select>
+                                        <p className="text-xs text-text-muted mt-1">Select a period to copy its budget categories and amounts</p>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex justify-between items-center mb-4">
