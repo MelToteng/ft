@@ -105,6 +105,7 @@ export interface ShoppingListItem {
   name: string;
   quantity: number;
   estimated_cost: number;
+  unit_price: number;
   actual_cost: number;
   is_purchased: boolean;
   purchased_by?: string;

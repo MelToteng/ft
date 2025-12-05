@@ -222,25 +222,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     return (
         <>
-            <div className="flex justify-between items-center mb-8 animate-fade-in">
-                <div>
-                    <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Dashboard</h1>
-                    <p className="text-text-muted">Welcome back to your financial overview.</p>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 animate-fade-in gap-3">
+                <div className="flex flex-wrap gap-2 w-full md:w-auto">
+                    <Button variant="primary" onClick={() => setActiveModal('expense')} className="px-3 py-2">
+                        <Icons.Plus /> <span className="hidden sm:inline">Add </span>Expense
+                    </Button>
+                    <Button variant="secondary" onClick={() => setActiveModal('income')} className="px-3 py-2">
+                        <Icons.Plus /> <span className="hidden sm:inline">Add </span>Income
+                    </Button>
+                    <Button variant="secondary" onClick={() => setActiveModal('budget')} className="px-3 py-2">
+                        <Icons.Chart /> <span className="hidden sm:inline">Budget </span>Planner
+                    </Button>
                 </div>
-                <div className="flex gap-3">
-                    <Button variant="primary" onClick={() => setActiveModal('expense')}>
-                        <Icons.Plus /> Add Expense
-                    </Button>
-                    <Button variant="primary" onClick={() => setActiveModal('income')}>
-                        <Icons.Plus /> Add Income
-                    </Button>
-                    <Button variant="secondary" onClick={() => setView('budgets')}>
-                        <Icons.Chart /> Budget Planner
-                    </Button>
+                <div className="flex gap-2 w-full md:w-auto">
                     <select
                         value={dashboardPeriodFilter}
                         onChange={(e) => setDashboardPeriodFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                        className="bg-surface-light border border-border rounded-xl px-4 py-2 text-text-primary text-sm focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
+                        className="bg-surface-light border border-border rounded-xl px-2 md:px-4 py-1.5 md:py-2 text-text-primary text-xs md:text-sm focus:ring-2 focus:ring-primary focus:outline-none transition-colors flex-1 md:flex-none"
                     >
                         <option value="all">All Time</option>
                         {budgetPeriods.map(period => (
@@ -250,7 +248,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <select
                         value={currency}
                         onChange={e => handleSetCurrency(e.target.value)}
-                        className="bg-surface-light border border-border rounded-xl px-4 py-2 text-text-primary text-sm focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
+                        className="bg-surface-light border border-border rounded-xl px-2 md:px-4 py-1.5 md:py-2 text-text-primary text-xs md:text-sm focus:ring-2 focus:ring-primary focus:outline-none transition-colors flex-1 md:flex-none"
                     >
                         <option value="BWP">BWP (P)</option>
                         <option value="ZAR">ZAR (R)</option>
