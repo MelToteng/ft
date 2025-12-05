@@ -38,6 +38,15 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
     const [shareEmail, setShareEmail] = useState('');
     const [shareExpiration, setShareExpiration] = useState('1'); // Default 1 hour
 
+    // Quick Price Entry Modal (for shopping mode)
+    const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
+    const [pricingItem, setPricingItem] = useState<ShoppingListItem | null>(null);
+    const [unitPrice, setUnitPrice] = useState('');
+    const [priceQuantity, setPriceQuantity] = useState('1');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [quickAddMode, setQuickAddMode] = useState(false); // For adding new items in shopping mode
+    const [quickAddName, setQuickAddName] = useState('');
+
     // Completion
     const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
 
@@ -58,13 +67,23 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
     };
 
     const openAddItemModal = () => {
-        setEditingItem(null);
-        setItemName('');
-        setItemQuantity('1');
-        setItemEstimate('');
-        setIsItemModalOpen(true);
-        setSimilarItems([]);
-        setShowDuplicateWarning(false);
+        if (shoppingMode) {
+            // In shopping mode, open price modal for quick add
+            setQuickAddMode(true);
+            setQuickAddName('');
+            setUnitPrice('');
+            setPriceQuantity('1');
+            setIsPriceModalOpen(true);
+        } else {
+            // Normal add item flow
+            setEditingItem(null);
+            setItemName('');
+            setItemQuantity('1');
+            setItemEstimate('');
+            setIsItemModalOpen(true);
+            setSimilarItems([]);
+            setShowDuplicateWarning(false);
+        }
     };
 
     const openEditItemModal = (item: ShoppingListItem) => {
@@ -131,25 +150,54 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
                     quantity: parseInt(itemQuantity) || 1,
                     estimated_cost: parseFloat(itemEstimate) || 0
                 });
+                setIsItemModalOpen(false);
+                loadList();
             } else {
                 // Add new item
-                await addShoppingListItem({
+                const newItem = await addShoppingListItem({
                     list_id: list.id,
                     name: itemName,
                     quantity: parseInt(itemQuantity) || 1,
                     estimated_cost: parseFloat(itemEstimate) || 0,
+                    unit_price: 0,
                     actual_cost: 0,
-                    is_purchased: false
+                    is_purchased: shoppingMode // Auto-check if in shopping mode
                 });
+                setIsItemModalOpen(false);
+
+                // If in shopping mode, open price modal for the new item
+                if (shoppingMode && newItem) {
+                    await loadList(); // Reload to get the new item
+                    // Find the newly added item
+                    const lists = await getShoppingLists();
+                    const currentList = lists.find(l => l.id === listId);
+                    const addedItem = currentList?.items?.find(i => i.name === itemName);
+
+                    if (addedItem) {
+                        setPricingItem(addedItem);
+                        setUnitPrice('');
+                        setPriceQuantity(addedItem.quantity.toString());
+                        setIsPriceModalOpen(true);
+                    }
+                } else {
+                    loadList();
+                }
             }
-            setIsItemModalOpen(false);
-            loadList();
         } catch (error) {
             console.error('Error saving item:', error);
         }
     };
 
     const handleToggleItem = async (item: ShoppingListItem, isPurchased: boolean) => {
+        // If in shopping mode and checking item, open price modal
+        if (shoppingMode && isPurchased) {
+            setPricingItem(item);
+            setUnitPrice((item.unit_price || 0).toString());
+            setPriceQuantity(item.quantity.toString());
+            setIsPriceModalOpen(true);
+            return;
+        }
+
         // Optimistic update
         if (!list) return;
         const previousItems = list.items;
@@ -165,6 +213,94 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
             console.error('Error updating item:', error);
             // Revert on error
             setList({ ...list, items: previousItems });
+        }
+    };
+
+    const handleSavePrice = async () => {
+        const price = parseFloat(unitPrice) || 0;
+        const qty = parseInt(priceQuantity) || 1;
+        const actualCost = price * qty;
+
+        if (!list) return;
+
+        try {
+            if (quickAddMode) {
+                // Quick add mode: adding new item in shopping mode
+                if (!quickAddName.trim()) {
+                    alert('Please enter an item name');
+                    return;
+                }
+
+                // Check if item already exists
+                const existingItem = list.items?.find(
+                    i => i.name.toLowerCase() === quickAddName.trim().toLowerCase()
+                );
+
+                if (existingItem) {
+                    // Item exists, update it
+                    const updatedItems = list.items?.map(i =>
+                        i.id === existingItem.id ? {
+                            ...i,
+                            is_purchased: true,
+                            unit_price: price,
+                            quantity: qty,
+                            actual_cost: actualCost
+                        } : i
+                    );
+                    setList({ ...list, items: updatedItems });
+                    await updateShoppingListItem(existingItem.id, {
+                        is_purchased: true,
+                        unit_price: price,
+                        quantity: qty,
+                        actual_cost: actualCost
+                    });
+                } else {
+                    // Item doesn't exist, create it
+                    await addShoppingListItem({
+                        list_id: list.id,
+                        name: quickAddName.trim(),
+                        quantity: qty,
+                        estimated_cost: 0,
+                        unit_price: price,
+                        actual_cost: actualCost,
+                        is_purchased: true
+                    });
+                }
+
+                setIsPriceModalOpen(false);
+                setQuickAddMode(false);
+                setQuickAddName('');
+                setUnitPrice('');
+                setPriceQuantity('1');
+                loadList();
+            } else if (pricingItem) {
+                // Regular mode: updating existing item
+                const updatedItems = list.items?.map(i =>
+                    i.id === pricingItem.id ? {
+                        ...i,
+                        is_purchased: true,
+                        unit_price: price,
+                        quantity: qty,
+                        actual_cost: actualCost
+                    } : i
+                );
+                setList({ ...list, items: updatedItems });
+                await updateShoppingListItem(pricingItem.id, {
+                    is_purchased: true,
+                    unit_price: price,
+                    quantity: qty,
+                    actual_cost: actualCost
+                });
+                setIsPriceModalOpen(false);
+                setPricingItem(null);
+                setUnitPrice('');
+                setPriceQuantity('1');
+                loadList();
+            }
+        } catch (error) {
+            console.error('Error saving price:', error);
+            loadList();
+            alert('Failed to save price. Please make sure the database migration has been run.');
         }
     };
 
@@ -284,14 +420,78 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
 
             {!shoppingMode && (
                 <div className="mb-8">
-                    <Button onClick={openAddItemModal} className="w-full md:w-auto">
+                    {list.items && list.items.length > 5 ? (
+                        <div className="flex gap-2">
+                            <div className="relative flex-1">
+                                <Icons.Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-text-muted" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search items..."
+                                    className="w-full bg-surface-light border border-border rounded-xl pl-10 pr-4 py-2 text-text-primary focus:ring-2 focus:ring-primary focus:outline-none"
+                                />
+                                {searchQuery && (
+                                    <button
+                                        onClick={() => setSearchQuery('')}
+                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted hover:text-text-primary"
+                                    >
+                                        <Icons.X className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                            <Button onClick={openAddItemModal} className="!px-4 !py-2 flex-shrink-0">
+                                <Icons.Plus className="w-5 h-5" />
+                            </Button>
+                        </div>
+                    ) : (
+                        <Button onClick={openAddItemModal} className="w-full md:w-auto">
+                            <Icons.Plus /> Add Item
+                        </Button>
+                    )}
+                </div>
+            )}
+
+            {/* Search Filter and Quick Add */}
+            {shoppingMode && list.items && list.items.length > 5 && (
+                <div className="mb-4 flex gap-2">
+                    <div className="relative flex-1">
+                        <Icons.Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-text-muted" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search items..."
+                            className="w-full bg-surface-light border border-border rounded-xl pl-10 pr-4 py-2 text-text-primary focus:ring-2 focus:ring-primary focus:outline-none"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted hover:text-text-primary"
+                            >
+                                <Icons.X className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
+                    <Button onClick={openAddItemModal} className="!px-4 !py-2 flex-shrink-0">
+                        <Icons.Plus className="w-5 h-5" />
+                    </Button>
+                </div>
+            )}
+
+            {/* Quick Add for short lists */}
+            {shoppingMode && list.items && list.items.length <= 5 && (
+                <div className="mb-4">
+                    <Button onClick={openAddItemModal} className="w-full">
                         <Icons.Plus /> Add Item
                     </Button>
                 </div>
             )}
 
-            <div className="space-y-3">
-                {list.items?.map(item => (
+            <div className={`space-y-3 ${shoppingMode ? 'max-h-[60vh] overflow-y-auto pr-2' : ''}`}>
+                {list.items?.filter(item =>
+                    !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase())
+                ).map(item => (
                     <div
                         key={item.id}
                         className={`bg-surface border ${item.is_purchased ? 'border-success/30 bg-success/5' : 'border-border'} rounded-xl p-4 transition-all flex items-center gap-4`}
@@ -493,6 +693,99 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
                             </p>
                         </div>
                     )}
+                </div>
+            </Modal>
+
+            {/* Quick Price Entry Modal */}
+            <Modal
+                isOpen={isPriceModalOpen}
+                onClose={() => {
+                    setIsPriceModalOpen(false);
+                    setPricingItem(null);
+                    setQuickAddMode(false);
+                    setQuickAddName('');
+                }}
+                title={quickAddMode ? "Add Item with Price" : "Enter Price"}
+            >
+                <div className="space-y-4">
+                    {quickAddMode ? (
+                        // Quick add mode: show name input
+                        <FormInput
+                            label="Item Name"
+                            id="quickAddName"
+                            type="text"
+                            value={quickAddName}
+                            onChange={e => setQuickAddName(e.target.value)}
+                            placeholder="What did you buy?"
+                            autoFocus
+                            required
+                        />
+                    ) : pricingItem ? (
+                        // Regular mode: show item name
+                        <div className="bg-surface-light p-3 rounded-lg">
+                            <p className="text-sm text-text-secondary">Item</p>
+                            <p className="font-semibold text-lg">{pricingItem.name}</p>
+                        </div>
+                    ) : null}
+
+                    <FormInput
+                        label="Unit Price"
+                        id="unitPrice"
+                        type="number"
+                        value={unitPrice}
+                        onChange={e => setUnitPrice(e.target.value)}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        autoFocus
+                        required
+                    />
+
+                    <FormInput
+                        label="Quantity"
+                        id="priceQuantity"
+                        type="number"
+                        value={priceQuantity}
+                        onChange={e => setPriceQuantity(e.target.value)}
+                        min="1"
+                        required
+                    />
+
+                    {unitPrice && priceQuantity && (
+                        <div className="bg-primary/10 border border-primary/30 rounded-lg p-3">
+                            <p className="text-sm text-text-secondary mb-1">Total Cost</p>
+                            <p className="text-2xl font-bold text-primary">
+                                {formatCurrency(parseFloat(unitPrice) * parseInt(priceQuantity))}
+                            </p>
+                            <p className="text-xs text-text-muted mt-1">
+                                {formatCurrency(parseFloat(unitPrice))} × {priceQuantity}
+                            </p>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3 justify-end pt-2">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => {
+                                setIsPriceModalOpen(false);
+                                setPricingItem(null);
+                                setQuickAddMode(false);
+                                setQuickAddName('');
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleSavePrice}
+                            disabled={
+                                !unitPrice || parseFloat(unitPrice) <= 0 ||
+                                (quickAddMode && !quickAddName.trim())
+                            }
+                        >
+                            {quickAddMode ? 'Add & Save Price' : 'Save Price'}
+                        </Button>
+                    </div>
                 </div>
             </Modal>
         </div>
