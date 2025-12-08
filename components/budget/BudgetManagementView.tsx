@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { BudgetPeriod, BudgetItem, BudgetSubItem } from '../../types';
-import { Button, FormInput, Icons } from '../../components/ui';
+import React, { useState, useEffect, useMemo } from 'react';
+import { BudgetPeriod, BudgetItem, BudgetSubItem, Transaction } from '../../types';
+import { Button, FormInput, Icons, Modal } from '../../components/ui';
 import { BudgetCategoryModal } from './BudgetCategoryModal';
 
 interface BudgetManagementViewProps {
     onClose: () => void;
     budgetPeriods: BudgetPeriod[];
     budgets: BudgetItem[];
+    transactions: Transaction[];
+    formatCurrency: (value: number) => string;
     allCategories: string[];
     addNotification: (message: string, type: 'success' | 'error' | 'info') => void;
     onSavePeriod: (period: Omit<BudgetPeriod, 'id'> & { id: number | 'new' }, budgetsToSave: { category: string, amount: number, subItems?: { name: string; amount: number }[] }[]) => Promise<void>;
@@ -17,6 +19,8 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
     onClose,
     budgetPeriods,
     budgets,
+    transactions,
+    formatCurrency,
     allCategories,
     addNotification,
     onSavePeriod,
@@ -31,6 +35,7 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
     const [copyFromPeriodId, setCopyFromPeriodId] = useState<number | ''>('');
+    const [transactionModalCategory, setTransactionModalCategory] = useState<string | null>(null);
 
     useEffect(() => {
         if (budgetPeriods.length > 0 && !activePeriodId) {
@@ -111,7 +116,33 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
         }
     };
 
-    const handleSave = async () => {
+    const handleSaveWithoutClosing = async () => {
+        if (!periodName || !startDate || !endDate) {
+            addNotification('Period name and dates are required.', 'error');
+            return;
+        }
+        if (new Date(startDate) > new Date(endDate)) {
+            addNotification('Start date cannot be after end date.', 'error');
+            return;
+        }
+
+        const budgetsToSave = Object.entries(budgetValues)
+            .map(([category, amount]: [string, number]) => ({
+                category,
+                amount,
+                subItems: subItemsValues[category] || []
+            }))
+            .filter((b) => b.amount > 0);
+
+        try {
+            await onSavePeriod({ id: activePeriodId as number, name: periodName, startDate, endDate }, budgetsToSave);
+            // Don't close - stay in the budget planner view
+        } catch (error: any) {
+            addNotification('Failed to save budget: ' + error.message, 'error');
+        }
+    };
+
+    const handleSaveAndClose = async () => {
         if (!periodName || !startDate || !endDate) {
             addNotification('Period name and dates are required.', 'error');
             return;
@@ -225,6 +256,34 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
             items.splice(index, 1);
             return { ...prev, [category]: items };
         });
+    };
+
+    // Filter transactions for the active period
+    const periodTransactions = useMemo(() => {
+        if (!activePeriodId || activePeriodId === 'new' || !startDate || !endDate) return [];
+
+        const periodStart = new Date(startDate + 'T00:00:00');
+        const periodEnd = new Date(endDate + 'T23:59:59');
+
+        return transactions.filter(t => {
+            if (t.type !== 'expense') return false;
+            const transactionDate = new Date(t.date + 'T00:00:00');
+            return transactionDate >= periodStart && transactionDate <= periodEnd;
+        });
+    }, [transactions, activePeriodId, startDate, endDate]);
+
+    // Calculate spending per category
+    const categorySpending = useMemo(() => {
+        const spending: Record<string, number> = {};
+        periodTransactions.forEach(t => {
+            spending[t.category] = (spending[t.category] || 0) + t.amount;
+        });
+        return spending;
+    }, [periodTransactions]);
+
+    // Get transactions for a specific category
+    const getCategoryTransactions = (category: string) => {
+        return periodTransactions.filter(t => t.category === category);
     };
 
     const budgetedCategories = Object.keys(budgetValues).sort();
@@ -367,6 +426,56 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
                                                     </button>
                                                 </div>
 
+                                                {/* Budget Progress Section */}
+                                                {categoryAmount > 0 && (
+                                                    <div className="px-3 pb-3">
+                                                        {(() => {
+                                                            const spent = categorySpending[cat] || 0;
+                                                            const percentage = (spent / categoryAmount) * 100;
+                                                            const hasTransactions = spent > 0;
+
+                                                            let progressColor = 'bg-success';
+                                                            let textColor = 'text-success';
+                                                            if (percentage >= 100) {
+                                                                progressColor = 'bg-danger';
+                                                                textColor = 'text-danger';
+                                                            } else if (percentage >= 80) {
+                                                                progressColor = 'bg-warning';
+                                                                textColor = 'text-warning';
+                                                            }
+
+                                                            return (
+                                                                <div className="space-y-1">
+                                                                    <div className="flex justify-between items-center text-xs">
+                                                                        <span className="text-text-muted">
+                                                                            {formatCurrency(spent)} spent of {formatCurrency(categoryAmount)}
+                                                                        </span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className={`font-semibold ${textColor}`}>
+                                                                                {percentage.toFixed(0)}%
+                                                                            </span>
+                                                                            {hasTransactions && (
+                                                                                <button
+                                                                                    onClick={() => setTransactionModalCategory(cat)}
+                                                                                    className="text-primary hover:text-primary-light text-xs underline"
+                                                                                >
+                                                                                    View Transactions
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="w-full bg-surface h-2 rounded-full overflow-hidden">
+                                                                        <div
+                                                                            className={`h-full rounded-full transition-all ${progressColor}`}
+                                                                            style={{ width: `${Math.min(percentage, 100)}%` }}
+                                                                        ></div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                )}
+
                                                 {/* Sub-items Section */}
                                                 {isExpanded && (
                                                     <div className="bg-surface/30 p-3 border-t border-border/50">
@@ -444,7 +553,10 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
                                 {activePeriodId !== 'new' ? (
                                     <Button variant="danger" onClick={() => handleDelete(activePeriodId as number)} className="!py-2"><Icons.Trash /> Delete Period</Button>
                                 ) : <div></div>}
-                                <Button onClick={handleSave} className="!py-2">Save Changes</Button>
+                                <div className="flex gap-3">
+                                    <Button onClick={handleSaveWithoutClosing} variant="secondary" className="!py-2">Save</Button>
+                                    <Button onClick={handleSaveAndClose} className="!py-2">Save & Close</Button>
+                                </div>
                             </div>
                         </div>
                     ) : (
@@ -461,6 +573,65 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
                 onAddCategories={handleAddCategories}
                 availableCategories={availableCategories}
             />
+
+            {/* Transaction Modal */}
+            <Modal
+                isOpen={transactionModalCategory !== null}
+                onClose={() => setTransactionModalCategory(null)}
+                title={`${transactionModalCategory} Transactions`}
+                maxWidth="max-w-2xl"
+            >
+                {transactionModalCategory && (() => {
+                    const categoryTransactions = getCategoryTransactions(transactionModalCategory);
+                    const totalSpent = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+                    return (
+                        <div className="space-y-4">
+                            <div className="text-sm text-text-muted">
+                                Showing {categoryTransactions.length} transaction{categoryTransactions.length !== 1 ? 's' : ''} for this period
+                            </div>
+
+                            {categoryTransactions.length > 0 ? (
+                                <>
+                                    <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                                        {categoryTransactions.map(transaction => (
+                                            <div
+                                                key={transaction.id}
+                                                className="bg-surface-light p-3 rounded-xl border border-border/50 flex justify-between items-center"
+                                            >
+                                                <div className="flex-1">
+                                                    <div className="font-medium text-text-primary">
+                                                        {transaction.description}
+                                                    </div>
+                                                    <div className="text-xs text-text-muted mt-1">
+                                                        {new Date(transaction.date + 'T00:00:00').toLocaleDateString('en-US', {
+                                                            year: 'numeric',
+                                                            month: 'short',
+                                                            day: 'numeric'
+                                                        })}
+                                                    </div>
+                                                </div>
+                                                <div className="text-danger font-semibold">
+                                                    {formatCurrency(transaction.amount)}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="pt-4 border-t border-border-light flex justify-between items-center">
+                                        <span className="font-semibold text-text-primary">Total Spent:</span>
+                                        <span className="text-lg font-bold text-danger">{formatCurrency(totalSpent)}</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="text-center py-8 text-text-muted">
+                                    <p>No transactions found for this category in this period.</p>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+            </Modal>
         </div>
     );
 };

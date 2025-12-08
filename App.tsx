@@ -183,8 +183,14 @@ function AppContent() {
 
     const savingsRate = useMemo(() => {
         if (periodIncome === 0) return 0;
-        return ((periodIncome - periodExpenses) / periodIncome) * 100;
-    }, [periodIncome, periodExpenses]);
+        // Calculate savings from Savings category
+        const savingsFromCategory = dashboardTransactions
+            .filter(t => t.type === 'expense' && t.category.toLowerCase() === 'savings')
+            .reduce((sum, t) => sum + t.amount, 0);
+        // Actual savings = (Income - Expenses) + Savings category expenses
+        const actualSavings = (periodIncome - periodExpenses) + savingsFromCategory;
+        return (actualSavings / periodIncome) * 100;
+    }, [periodIncome, periodExpenses, dashboardTransactions]);
 
     const handleAddTransaction = async (transaction: Omit<Transaction, 'id'>, shouldClose: boolean = true) => {
         try {
@@ -455,6 +461,8 @@ function AppContent() {
                         onClose={() => setView('dashboard')}
                         budgetPeriods={budgetPeriods}
                         budgets={budgets}
+                        transactions={transactions}
+                        formatCurrency={formatCurrency}
                         allCategories={allExpenseCategories}
                         addNotification={addNotification}
                         onSavePeriod={handleSavePeriod}
