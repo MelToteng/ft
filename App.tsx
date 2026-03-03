@@ -59,7 +59,7 @@ function AppContent() {
     const [isLoading, setIsLoading] = useState(true);
     const [view, setView] = useState<'dashboard' | 'budgets' | 'transactions' | 'recurring' | 'shopping-list' | 'shopping-list-detail'>('dashboard');
     const [selectedListId, setSelectedListId] = useState<number | undefined>(undefined);
-    const [dashboardPeriodFilter, setDashboardPeriodFilter] = useState<number | 'all'>('all');
+    const [dashboardPeriodFilter, setDashboardPeriodFilter] = useState<number | 'all'>('all'); // Will be updated in loadData
     const [isBalanceTrendModalOpen, setIsBalanceTrendModalOpen] = useState(false);
     const [currency, setCurrency] = useState('USD');
 
@@ -128,6 +128,12 @@ function AppContent() {
             setCustomCategories(loadedCategories);
             if (savedCurrency) setCurrency(savedCurrency);
 
+            // Set default period to the latest one if not already set or if it's 'all' and we want a default
+            if (loadedPeriods.length > 0 && (dashboardPeriodFilter === 'all' || !loadedPeriods.find(p => p.id === dashboardPeriodFilter))) {
+                const sortedPeriods = [...loadedPeriods].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+                setDashboardPeriodFilter(sortedPeriods[0].id);
+            }
+
             if (processingResult.generatedCount > 0) {
                 addNotification(processingResult.message, 'success');
                 // Reload transactions to show the new ones
@@ -169,28 +175,35 @@ function AppContent() {
         });
     }, [transactions, budgetPeriods, dashboardPeriodFilter]);
 
-    const { periodIncome, periodExpenses, periodNet } = useMemo(() => {
+    const { periodIncome, periodExpenses, periodNet, periodTransfers } = useMemo(() => {
         const income = dashboardTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
         const expenses = dashboardTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-        return { periodIncome: income, periodExpenses: expenses, periodNet: income - expenses };
+        const transfers = dashboardTransactions.filter(t => t.type === 'transfer').reduce((sum, t) => sum + t.amount, 0);
+
+        return {
+            periodIncome: income,
+            periodExpenses: expenses,
+            periodTransfers: transfers,
+            periodNet: income - expenses - transfers
+        };
     }, [dashboardTransactions]);
 
     const totalBalance = useMemo(() => {
         const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
         const expenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-        return income - expenses;
+        const transfers = transactions.filter(t => t.type === 'transfer').reduce((sum, t) => sum + t.amount, 0);
+        // Assuming 'transfer' is outgoing from the tracked balance to an external account/goal
+        return income - expenses - transfers;
     }, [transactions]);
 
     const savingsRate = useMemo(() => {
         if (periodIncome === 0) return 0;
-        // Calculate savings from Savings category
-        const savingsFromCategory = dashboardTransactions
-            .filter(t => t.type === 'expense' && t.category.toLowerCase() === 'savings')
-            .reduce((sum, t) => sum + t.amount, 0);
-        // Actual savings = (Income - Expenses) + Savings category expenses
-        const actualSavings = (periodIncome - periodExpenses) + savingsFromCategory;
-        return (actualSavings / periodIncome) * 100;
-    }, [periodIncome, periodExpenses, dashboardTransactions]);
+        // In the new system, transfers are deductions from the main account.
+        // Net savings is essentially what's left after expenses and transfers, 
+        // unless we want to count certain transfers as 'savings' themselves.
+        // For simplicity, let's follow the user's lead: periodNet is what remains.
+        return Math.max(0, (periodNet / periodIncome) * 100);
+    }, [periodIncome, periodNet]);
 
     const handleAddTransaction = async (transaction: Omit<Transaction, 'id'>, shouldClose: boolean = true) => {
         try {
@@ -286,7 +299,11 @@ function AppContent() {
 
         return transactions
             .filter(t => new Date(t.date) < periodStart)
-            .reduce((acc, t) => acc + (t.type === 'income' ? t.amount : -t.amount), 0);
+            .reduce((acc, t) => {
+                if (t.type === 'income') return acc + t.amount;
+                if (t.type === 'expense' || t.type === 'transfer') return acc - t.amount;
+                return acc;
+            }, 0);
 
     }, [transactions, budgetPeriods, dashboardPeriodFilter]);
 
@@ -296,7 +313,9 @@ function AppContent() {
         const sorted = [...dashboardTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         let runningBalance = startingBalance;
         const data = sorted.map(t => {
-            runningBalance += t.type === 'income' ? t.amount : -t.amount;
+            if (t.type === 'income') runningBalance += t.amount;
+            else if (t.type === 'expense' || t.type === 'transfer') runningBalance -= t.amount;
+
             return {
                 date: new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                 balance: runningBalance
@@ -365,9 +384,7 @@ function AppContent() {
             return dashboardPeriodFilter;
         }
         if (budgetPeriods.length > 0) {
-            const today = new Date().toISOString().slice(0, 10);
-            const currentPeriod = budgetPeriods.find(p => p.startDate <= today && p.endDate >= today);
-            if (currentPeriod) return currentPeriod.id;
+            // Default to the latest period
             const sortedPeriods = [...budgetPeriods].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
             return sortedPeriods[0].id;
         }
@@ -518,9 +535,9 @@ function AppContent() {
             </div>
 
             <TransactionFormModal
-                isOpen={activeModal === 'income' || activeModal === 'expense'}
+                isOpen={activeModal === 'income' || activeModal === 'expense' || activeModal === 'transfer'}
                 onClose={() => setActiveModal(null)}
-                type={activeModal === 'income' ? 'income' : activeModal === 'expense' ? 'expense' : null}
+                type={activeModal === 'income' ? 'income' : activeModal === 'expense' ? 'expense' : activeModal === 'transfer' ? 'transfer' : null}
                 onSubmit={handleAddTransaction}
                 expenseCategories={activeBudgetCategories}
                 customCategories={customCategories}

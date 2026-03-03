@@ -71,9 +71,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }, [transactions, budgetPeriods, dashboardPeriodFilter]);
 
     const transactionCounts = useMemo(() => {
-        const incomeCount = dashboardTransactions.filter(t => t.type === 'income').length;
-        const expenseCount = dashboardTransactions.filter(t => t.type === 'expense').length;
-        return { incomeCount, expenseCount };
+        return {
+            incomeCount: dashboardTransactions.filter(t => t.type === 'income').length,
+            expenseCount: dashboardTransactions.filter(t => t.type === 'expense' || t.type === 'transfer').length,
+        };
     }, [dashboardTransactions]);
 
     const [isBudgetProgressModalOpen, setIsBudgetProgressModalOpen] = React.useState(false);
@@ -117,9 +118,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     const topSpendingTransactions = useMemo(() => {
         return dashboardTransactions
-            .filter(t => t.type === 'expense')
+            .filter(t => t.type === 'expense' || t.type === 'transfer')
             .sort((a, b) => b.amount - a.amount)
             .slice(0, 10);
+    }, [dashboardTransactions]);
+    const categorySpending = useMemo(() => {
+        const spending: Record<string, number> = {};
+        dashboardTransactions
+            .filter(t => t.type === 'expense' || t.type === 'transfer')
+            .forEach(t => {
+                spending[t.category] = (spending[t.category] || 0) + t.amount;
+            });
+        return Object.entries(spending).map(([name, amount]) => ({ name, amount }));
     }, [dashboardTransactions]);
 
     // Calculate top spending by budget categories (top 3)
@@ -149,76 +159,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         }).sort((a, b) => b.spent - a.spent).slice(0, 3);
     }, [budgetDisplayPeriod, budgets, transactions]);
 
-    // Calculate velocity stats for budget health
-    const velocityStats = useMemo(() => {
+    // Calculate budget health and remaining
+    const budgetStats = useMemo(() => {
         if (!budgetDisplayPeriod) return null;
-
-        const start = new Date(budgetDisplayPeriod.startDate + 'T00:00:00');
-        const end = new Date(budgetDisplayPeriod.endDate + 'T23:59:59');
-        const now = new Date();
-
-        if (now < start) return null;
-
-        const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-        const daysPassed = Math.min(Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)), totalDays);
-        const effectiveDays = Math.max(1, daysPassed);
-
-        const dailyAverage = periodExpenses / effectiveDays;
-        const projectedSpend = dailyAverage * totalDays;
-
-        // Runway (Days Left at current rate) - only relevant if balance > 0
-        const runway = dailyAverage > 0 ? totalBalance / dailyAverage : 0;
 
         const totalBudget = budgets
             .filter(b => b.budgetPeriodId === budgetDisplayPeriod.id)
             .reduce((sum, b) => sum + b.amount, 0);
 
-        const percentageOfBudget = totalBudget > 0 ? ((projectedSpend / totalBudget) * 100) - 100 : 0;
-
-        // Calculate overspent amount
-        const periodTransactions = transactions.filter(t => {
-            const d = new Date(t.date + 'T00:00:00');
-            return d >= start && d <= end;
-        });
+        const periodStart = new Date(budgetDisplayPeriod.startDate + 'T00:00:00');
+        const periodEnd = new Date(budgetDisplayPeriod.endDate + 'T23:59:59');
 
         const currentPeriodBudgets = budgets.filter(b => b.budgetPeriodId === budgetDisplayPeriod.id);
-        let totalOverspent = 0;
+        const budgetedCategories = new Set(currentPeriodBudgets.map(b => b.category));
 
-        currentPeriodBudgets.forEach(budget => {
-            const spent = periodTransactions
-                .filter(t => t.category === budget.category && t.type === 'expense')
-                .reduce((sum, t) => sum + t.amount, 0);
+        const periodExpensesInBudget = transactions
+            .filter(t => t.type === 'expense' && budgetedCategories.has(t.category))
+            .filter(t => {
+                const d = new Date(t.date + 'T00:00:00');
+                return d >= periodStart && d <= periodEnd;
+            })
+            .reduce((sum, t) => sum + t.amount, 0);
 
-            if (spent > budget.amount) {
-                totalOverspent += (spent - budget.amount);
-            }
-        });
+        const remaining = totalBudget - periodExpensesInBudget;
+        const percentageSpent = totalBudget > 0 ? (periodExpensesInBudget / totalBudget) * 100 : 0;
 
-        const overspentPercentage = totalBudget > 0 ? (totalOverspent / totalBudget) * 100 : 0;
-
-        // Projected Savings Rate = (Period Income - Projected Spend) / Period Income
-        const projectedSavings = periodIncome - projectedSpend;
-        const projectedSavingsRate = periodIncome > 0 ? Math.max(0, (projectedSavings / periodIncome) * 100) : 0;
-
-        let status: 'on-track' | 'warning' | 'danger' = 'on-track';
-        if (totalBudget > 0) {
-            if (projectedSpend > totalBudget) status = 'danger';
-            else if (projectedSpend > totalBudget * 0.9) status = 'warning';
-        }
+        let status: 'success' | 'warning' | 'danger' = 'success';
+        if (percentageSpent > 100) status = 'danger';
+        else if (percentageSpent > 85) status = 'warning';
 
         return {
-            dailyAverage,
-            projectedSpend,
             totalBudget,
-            percentageOfBudget,
-            projectedPercentage: totalBudget > 0 ? (projectedSpend / totalBudget) * 100 : 0,
-            status,
-            runway,
-            overspentPercentage,
-            totalOverspent,
-            projectedSavingsRate
+            spent: periodExpensesInBudget,
+            remaining,
+            percentageSpent,
+            status
         };
-    }, [budgetDisplayPeriod, periodExpenses, budgets, totalBalance, transactions, periodIncome]);
+    }, [budgetDisplayPeriod, budgets, transactions]);
+
+    const transferTotal = useMemo(() => {
+        return dashboardTransactions
+            .filter(t => t.type === 'transfer')
+            .reduce((sum, t) => sum + t.amount, 0);
+    }, [dashboardTransactions]);
 
     return (
         <>
@@ -229,6 +212,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </Button>
                     <Button variant="secondary" onClick={() => setActiveModal('income')} className="px-3 py-2">
                         <Icons.Plus /> <span className="hidden sm:inline">Add </span>Income
+                    </Button>
+                    <Button variant="secondary" onClick={() => setActiveModal('transfer')} className="px-3 py-2">
+                        <Icons.Plus /> <span className="hidden sm:inline">Add </span>Transfer
                     </Button>
                     <Button variant="secondary" onClick={() => setView('budgets')} className="px-3 py-2">
                         <Icons.Chart /> <span className="hidden sm:inline">Budget </span>Planner
@@ -269,15 +255,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         label="Total Balance"
                         value={formatCurrency(totalBalance)}
                         colorClass={totalBalance >= 0 ? "bg-success" : "bg-danger"}
-                        description="Your cumulative balance across all time (all income minus all expenses)."
+                        description="Your cumulative balance across all time (Income - Expenses - Transfers)."
                         subValue={
                             <div className="flex flex-col gap-1 mt-2 text-xs font-medium">
-                                {velocityStats?.runway && velocityStats.runway > 0 && (
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-text-muted">Runway:</span>
-                                        <span className="text-text-primary">{velocityStats.runway.toFixed(0)} days</span>
-                                    </div>
-                                )}
                                 <div className="flex justify-between items-center">
                                     <span className="text-text-muted">Savings Rate:</span>
                                     <span className={savingsRate >= 20 ? 'text-success' : savingsRate > 0 ? 'text-warning' : 'text-danger'}>
@@ -292,16 +272,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         label="Period Net"
                         value={formatCurrency(periodNet)}
                         colorClass={periodNet >= 0 ? "bg-success" : "bg-danger"}
-                        description="Net income minus expenses for this specific period only."
+                        description="Net change in balance for this period (Income - Expenses - Transfers)."
                         trend={calculateTrend(periodNet, previousPeriodStats?.net)}
                         subValue={
                             <div className="flex flex-col gap-1 mt-2 text-xs font-medium">
-                                {velocityStats?.dailyAverage && velocityStats.dailyAverage > 0 && periodNet > 0 && (
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-text-muted">Runway:</span>
-                                        <span className="text-text-primary">{(periodNet / velocityStats.dailyAverage).toFixed(0)} days</span>
-                                    </div>
-                                )}
                                 <div className="flex justify-between items-center">
                                     <span className="text-text-muted">Savings Rate:</span>
                                     <span className={savingsRate >= 20 ? 'text-success' : savingsRate > 0 ? 'text-warning' : 'text-danger'}>
@@ -321,41 +295,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     trend={calculateTrend(periodIncome, previousPeriodStats?.income)}
                 />
                 <StatCard
-                    label="Total Expenses"
-                    value={formatCurrency(periodExpenses)}
+                    label="Total Deductions"
+                    value={formatCurrency(periodExpenses + transferTotal)}
                     colorClass="bg-danger"
-                    description={`Sum of ${transactionCounts.expenseCount} expense transactions in the selected period.`}
-                    trend={calculateTrend(periodExpenses, previousPeriodStats?.expenses)}
+                    description={`Sum of ${transactionCounts.expenseCount} transactions (Expenses + Transfers) in the selected period.`}
+                    trend={calculateTrend(periodExpenses + transferTotal, previousPeriodStats ? (previousPeriodStats.expenses + (dashboardTransactions.filter(t => t.type === 'transfer').reduce((s, x) => s + x.amount, 0))) : undefined)}
                 />
 
                 <StatCard
-                    label="Spending Velocity"
-                    value={<span className="text-2xl">{velocityStats ? `${formatCurrency(velocityStats.dailyAverage)}/day` : '-'}</span>}
-                    colorClass={velocityStats?.status === 'danger' ? 'bg-danger' : velocityStats?.status === 'warning' ? 'bg-warning' : 'bg-success'}
-                    description="Daily average spending and projected outcome."
-                    subValue={velocityStats ? (
+                    label="Budget Remaining"
+                    value={formatCurrency(budgetStats?.remaining || 0)}
+                    colorClass={budgetStats?.status === 'danger' ? 'bg-danger' : budgetStats?.status === 'warning' ? 'bg-warning' : 'bg-primary'}
+                    description="Total budgeted amount minus expenses in budgeted categories."
+                    subValue={budgetStats ? (
                         <div className="flex flex-col gap-1 mt-2 text-xs font-medium">
                             <div className="flex justify-between items-center">
-                                <span className="text-text-muted">Projected Spend:</span>
-                                <span className={velocityStats.projectedPercentage > 100 ? 'text-danger' : 'text-success'}>
-                                    {velocityStats.projectedPercentage.toFixed(0)}%
+                                <span className="text-text-muted">Total Used:</span>
+                                <span className={budgetStats.status === 'danger' ? 'text-danger' : 'text-success'}>
+                                    {budgetStats.percentageSpent.toFixed(0)}%
                                 </span>
                             </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-text-muted">Proj. Savings Rate:</span>
-                                <span className={velocityStats.projectedSavingsRate >= 20 ? 'text-success' : velocityStats.projectedSavingsRate > 0 ? 'text-warning' : 'text-danger'}>
-                                    {velocityStats.projectedSavingsRate.toFixed(1)}%
-                                </span>
+                            <div className="w-full bg-surface-light rounded-full h-1 mt-1">
+                                <div
+                                    className={`h-full rounded-full ${budgetStats.status === 'danger' ? 'bg-danger' : budgetStats.status === 'warning' ? 'bg-warning' : 'bg-primary'}`}
+                                    style={{ width: `${Math.min(budgetStats.percentageSpent, 100)}%` }}
+                                ></div>
                             </div>
                         </div>
-                    ) : undefined}
+                    ) : <span className="text-xs text-text-muted italic">No active budget</span>}
                 />
             </section>
 
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
                 {/* Budget Health Card */}
                 <div className="bg-surface/50 backdrop-blur-xl p-6 rounded-4xl border border-border h-96 flex flex-col">
-                    {velocityStats && budgetDisplayPeriod ? (
+                    {budgetStats && budgetDisplayPeriod ? (
                         <div className="flex flex-col h-full">
                             <div className="flex justify-between items-start mb-4">
                                 <div>
@@ -369,41 +343,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                             <div className="flex-grow flex flex-col items-center justify-center">
                                 <div className="mb-4">
-                                    <span className={`text-3xl font-bold ${velocityStats.status === 'on-track' ? 'text-success' :
-                                        velocityStats.status === 'warning' ? 'text-warning' : 'text-danger'
+                                    <span className={`text-3xl font-bold ${budgetStats.status === 'success' ? 'text-success' :
+                                        budgetStats.status === 'warning' ? 'text-warning' : 'text-danger'
                                         }`}>
-                                        {velocityStats.status === 'on-track' ? 'On Track' :
-                                            velocityStats.status === 'warning' ? 'Warning' : 'Over Budget'}
+                                        {budgetStats.status === 'success' ? 'On Track' :
+                                            budgetStats.status === 'warning' ? 'Watch Out' : 'Over Budget'}
                                     </span>
                                 </div>
 
                                 <div className="text-center mb-4">
-                                    <div className="text-xs text-text-muted mb-1">Budget Shortfall</div>
-                                    <span className={`text-2xl font-bold ${velocityStats.overspentPercentage > 0 ? 'text-danger' : 'text-success'
+                                    <div className="text-xs text-text-muted mb-1">Percentage Used</div>
+                                    <span className={`text-2xl font-bold ${budgetStats.status === 'danger' ? 'text-danger' : 'text-success'
                                         }`}>
-                                        {velocityStats.overspentPercentage.toFixed(1)}%
+                                        {budgetStats.percentageSpent.toFixed(1)}%
                                     </span>
                                 </div>
 
                                 <div className="w-full mb-4">
                                     <div className="w-full bg-surface rounded-full h-2">
                                         <div
-                                            className={`h-2 rounded-full transition-all ${velocityStats.status === 'on-track' ? 'bg-success' :
-                                                velocityStats.status === 'warning' ? 'bg-warning' : 'bg-danger'
+                                            className={`h-2 rounded-full transition-all ${budgetStats.status === 'success' ? 'bg-success' :
+                                                budgetStats.status === 'warning' ? 'bg-warning' : 'bg-danger'
                                                 }`}
-                                            style={{ width: `${Math.min(velocityStats.projectedPercentage, 100)}%` }}
+                                            style={{ width: `${Math.min(budgetStats.percentageSpent, 100)}%` }}
                                         ></div>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3 w-full">
                                     <div className="bg-surface-light p-2 rounded-lg text-center">
-                                        <div className="text-xs text-text-muted">Budget Total</div>
-                                        <div className="text-sm font-bold">{formatCurrency(velocityStats.totalBudget)}</div>
+                                        <div className="text-xs text-text-muted">Total Budget</div>
+                                        <div className="text-sm font-bold">{formatCurrency(budgetStats.totalBudget)}</div>
                                     </div>
                                     <div className="bg-surface-light p-2 rounded-lg text-center">
-                                        <div className="text-xs text-text-muted">Budget Shortfall</div>
-                                        <div className="text-sm font-bold">{formatCurrency(velocityStats.totalOverspent)}</div>
+                                        <div className="text-xs text-text-muted">Expenses</div>
+                                        <div className="text-sm font-bold">{formatCurrency(budgetStats.spent)}</div>
                                     </div>
                                 </div>
                             </div>
@@ -574,9 +548,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                         // Calculate totals
                         let totalBudgeted = 0;
-                        let totalSpent = 0;
+                        let totalExpenses = 0;
                         let totalRemaining = 0;
                         let unspentBudget = 0;
+
+                        const periodTransfersAmount = transactions
+                            .filter(t => t.type === 'transfer')
+                            .filter(t => {
+                                const d = new Date(t.date + 'T00:00:00');
+                                return d >= periodStart && d <= periodEnd;
+                            })
+                            .reduce((sum, t) => sum + t.amount, 0);
 
                         const budgetData = currentPeriodBudgets.map((budget) => {
                             const spent = transactions
@@ -591,7 +573,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             const percentage = budget.amount > 0 ? Math.min((spent / budget.amount) * 100, 100) : 0;
 
                             totalBudgeted += budget.amount;
-                            totalSpent += spent;
+                            totalExpenses += spent;
                             totalRemaining += remaining;
                             if (remaining > 0) {
                                 unspentBudget += remaining;
@@ -629,31 +611,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 {/* Totals Section */}
                                 <div className="border-t border-border pt-4 space-y-2">
                                     <div className="flex justify-between items-center">
-                                        <span className="text-xs text-text-muted">Budgeted / Spent</span>
+                                        <span className="text-xs text-text-muted">Budgeted / Total Deducted</span>
                                         <span className="text-sm font-medium">
                                             <span className="text-text-primary">{formatCurrency(totalBudgeted)}</span>
                                             <span className="text-text-muted mx-1">/</span>
-                                            <span className={totalSpent >= totalBudgeted ? 'text-danger' : totalSpent > totalBudgeted * 0.7 ? 'text-warning' : 'text-success'}>
-                                                {formatCurrency(totalSpent)}
+                                            <span className={(totalExpenses + periodTransfersAmount) >= totalBudgeted ? 'text-danger' : (totalExpenses + periodTransfersAmount) > totalBudgeted * 0.7 ? 'text-warning' : 'text-success'}>
+                                                {formatCurrency(totalExpenses + periodTransfersAmount)}
                                             </span>
                                         </span>
                                     </div>
                                     <div className="flex justify-between items-center">
-                                        <span className="text-xs text-text-muted">Unspent / Remaining</span>
-                                        <span className="text-sm font-medium">
-                                            <span className={
-                                                unspentBudget < totalBudgeted * 0.1 ? 'text-danger' :
-                                                    unspentBudget < totalBudgeted * 0.3 ? 'text-warning' :
-                                                        'text-success'
-                                            }>{formatCurrency(unspentBudget)}</span>
-                                            <span className="text-text-muted mx-1">/</span>
-                                            <span className={
-                                                totalRemaining < 0 ? 'text-danger' :
-                                                    totalRemaining < unspentBudget * 0.5 ? 'text-warning' :
-                                                        'text-success'
-                                            }>{totalRemaining < 0 ? '-' : ''}{formatCurrency(Math.abs(totalRemaining))}</span>
+                                        <span className="text-xs text-text-muted">Actual Remaining (Budget)</span>
+                                        <span className={`text-sm font-medium ${totalRemaining >= 0 ? 'text-success' : 'text-danger'}`}>
+                                            {formatCurrency(totalRemaining)}
                                         </span>
                                     </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs text-text-muted">Unspent (Period Net)</span>
+                                        <span className={`text-sm font-medium ${periodNet >= 0 ? 'text-success' : 'text-danger'}`}>
+                                            {formatCurrency(periodNet)}
+                                        </span>
+                                    </div>
+                                    {transferTotal > 0 && (
+                                        <div className="text-[10px] text-text-muted italic text-right">
+                                            * Transfers ({formatCurrency(transferTotal)}) already deducted from Unspent
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         );

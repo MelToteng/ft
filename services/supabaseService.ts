@@ -577,7 +577,7 @@ export const importTransactionsCSV = async (
 
     const parsed: import('../types').ParsedTransaction[] = result.data.map((row: any) => {
         const amount = parseFloat(row[columnMapping.amount]);
-        const type = columnMapping.type ? row[columnMapping.type]?.toLowerCase() as 'income' | 'expense' : undefined;
+        const type = columnMapping.type ? row[columnMapping.type]?.toLowerCase() as 'income' | 'expense' | 'transfer' : undefined;
 
         return {
             date: row[columnMapping.date],

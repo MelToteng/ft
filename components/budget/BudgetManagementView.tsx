@@ -69,8 +69,7 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
             }
         } else if (activePeriodId === 'new') {
             const today = new Date();
-            const nextMonth = new Date();
-            nextMonth.setDate(today.getDate() + 30);
+            const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate() - 1);
 
             setPeriodName('');
             setStartDate(today.toISOString().slice(0, 10));

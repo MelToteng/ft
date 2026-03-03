@@ -128,8 +128,8 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
 
     const isEditMode = !!transaction;
     const modalTitle = isEditMode
-        ? (type === 'income' ? 'Edit Income' : 'Edit Expense')
-        : (type === 'income' ? 'Add Income' : 'Add Expense');
+        ? (type === 'income' ? 'Edit Income' : type === 'expense' ? 'Edit Expense' : 'Edit Transfer')
+        : (type === 'income' ? 'Add Income' : type === 'expense' ? 'Add Expense' : 'Add Transfer');
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>
@@ -137,7 +137,7 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
                 <FormInput label="Description" id="description" type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder={type === 'income' ? 'e.g., Salary' : 'e.g., Groceries'} required />
                 <div className="grid grid-cols-2 gap-4">
                     <FormInput label="Amount" id="amount" type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" step="0.01" required />
-                    {type === 'expense' ? (
+                    {type !== 'income' ? (
                         <div>
                             <label htmlFor="category" className="block text-sm font-medium text-text-secondary mb-2">Category</label>
                             <select
@@ -146,16 +146,26 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
                                 onChange={e => setCategory(e.target.value)}
                                 className="w-full bg-surface-light border border-border rounded-xl px-4 py-2 text-text-primary focus:ring-2 focus:ring-primary focus:outline-none"
                             >
-                                {expenseCategories.map(cat => {
-                                    const color = getCategoryColor(cat);
-                                    return (
-                                        <option key={cat} value={cat}>
-                                            {color ? '● ' : ''}{cat}
-                                        </option>
-                                    );
-                                })}
+                                {type === 'transfer' ? (
+                                    <>
+                                        <option value="Savings">Savings</option>
+                                        <option value="Investment">Investment</option>
+                                        <option value="Credit Card Payment">Credit Card Payment</option>
+                                        <option value="Internal Transfer">Internal Transfer</option>
+                                        <option value="Other">Other</option>
+                                    </>
+                                ) : (
+                                    expenseCategories.map(cat => {
+                                        const color = getCategoryColor(cat);
+                                        return (
+                                            <option key={cat} value={cat}>
+                                                {color ? '● ' : ''}{cat}
+                                            </option>
+                                        );
+                                    })
+                                )}
                             </select>
-                            {getCategoryColor(category) && (
+                            {type === 'expense' && getCategoryColor(category) && (
                                 <div className="flex items-center gap-2 mt-1">
                                     <span
                                         className="w-3 h-3 rounded-full"
@@ -193,9 +203,9 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
                 <FormInput label="Date" id="date" type="date" value={date} onChange={e => setDate(e.target.value)} required />
                 <div className="flex gap-3 mt-4">
                     <Button type="submit" className="flex-1">
-                        {isEditMode ? 'Update' : (type === 'income' ? 'Add Income' : 'Add Expense')}
+                        {isEditMode ? 'Update' : (type === 'income' ? 'Add Income' : type === 'expense' ? 'Add Expense' : 'Add Transfer')}
                     </Button>
-                    {type === 'expense' && !isEditMode && (
+                    {(type === 'expense' || type === 'transfer') && !isEditMode && (
                         <Button type="button" variant="secondary" className="flex-1" onClick={handleSaveAndAddAnother}>
                             Save & Add Another
                         </Button>
