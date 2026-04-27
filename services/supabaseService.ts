@@ -689,7 +689,7 @@ export const getShoppingLists = async (): Promise<import('../types').ShoppingLis
 };
 
 export const createShoppingList = async (
-    list: Omit<import('../types').ShoppingList, 'id' | 'created_at' | 'updated_at'>
+    list: Omit<import('../types').ShoppingList, 'id' | 'created_at' | 'updated_at' | 'user_id'>
 ): Promise<import('../types').ShoppingList> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');

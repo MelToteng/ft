@@ -17,6 +17,7 @@ interface DashboardViewProps {
     periodIncome: number;
     periodExpenses: number;
     periodNet: number;
+    startingBalance: number;
     totalBalance: number;
     savingsRate: number;
     formatCurrency: (value: number) => string;
@@ -28,6 +29,7 @@ interface DashboardViewProps {
     chartData: any[];
     spendingByCategory: any[];
     budgetDisplayPeriod: BudgetPeriod | null | undefined;
+    handleAddTransaction?: (transaction: Omit<Transaction, 'id'>, shouldClose?: boolean) => Promise<void>;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -41,6 +43,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     periodIncome,
     periodExpenses,
     periodNet,
+    startingBalance,
     totalBalance,
     savingsRate,
     formatCurrency,
@@ -51,7 +54,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setIsBalanceTrendModalOpen,
     chartData,
     spendingByCategory,
-    budgetDisplayPeriod
+    budgetDisplayPeriod,
+    handleAddTransaction
 }) => {
 
     const dashboardTransactions = useMemo(() => {
@@ -79,6 +83,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     const [isBudgetProgressModalOpen, setIsBudgetProgressModalOpen] = React.useState(false);
     const [recentTransactionsView, setRecentTransactionsView] = React.useState<'recent' | 'top' | 'categories'>('recent');
+    const [expandedBudgets, setExpandedBudgets] = React.useState<Set<string>>(new Set());
+
+    const toggleBudgetExpanded = (category: string) => {
+        setExpandedBudgets(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(category)) {
+                newSet.delete(category);
+            } else {
+                newSet.add(category);
+            }
+            return newSet;
+        });
+    };
 
     // Calculate previous period stats for trends
     const previousPeriodStats = useMemo(() => {
@@ -186,7 +203,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         let status: 'success' | 'warning' | 'danger' = 'success';
         if (percentageSpent > 100) status = 'danger';
-        else if (percentageSpent > 85) status = 'warning';
+        else if (percentageSpent >= 85) status = 'warning';
 
         return {
             totalBudget,
@@ -248,65 +265,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
 
-            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12 animate-fade-in">
-                {/* Conditionally show either Period Net OR Total Balance based on filter */}
-                {dashboardPeriodFilter === 'all' ? (
-                    <StatCard
-                        label="Total Balance"
-                        value={formatCurrency(totalBalance)}
-                        colorClass={totalBalance >= 0 ? "bg-success" : "bg-danger"}
-                        description="Your cumulative balance across all time (Income - Expenses - Transfers)."
-                        subValue={
-                            <div className="flex flex-col gap-1 mt-2 text-xs font-medium">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-text-muted">Savings Rate:</span>
-                                    <span className={savingsRate >= 20 ? 'text-success' : savingsRate > 0 ? 'text-warning' : 'text-danger'}>
-                                        {savingsRate.toFixed(1)}%
-                                    </span>
-                                </div>
-                            </div>
-                        }
-                    />
-                ) : (
-                    <StatCard
-                        label="Period Net"
-                        value={formatCurrency(periodNet)}
-                        colorClass={periodNet >= 0 ? "bg-success" : "bg-danger"}
-                        description="Net change in balance for this period (Income - Expenses - Transfers)."
-                        trend={calculateTrend(periodNet, previousPeriodStats?.net)}
-                        subValue={
-                            <div className="flex flex-col gap-1 mt-2 text-xs font-medium">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-text-muted">Savings Rate:</span>
-                                    <span className={savingsRate >= 20 ? 'text-success' : savingsRate > 0 ? 'text-warning' : 'text-danger'}>
-                                        {savingsRate.toFixed(1)}%
-                                    </span>
-                                </div>
-                            </div>
-                        }
-                    />
-                )}
-
+            <section className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12 animate-fade-in">
                 <StatCard
-                    label="Total Income"
-                    value={formatCurrency(periodIncome)}
+                    label="Total Budgeted"
+                    value={formatCurrency(budgetStats?.totalBudget || 0)}
                     colorClass="bg-primary"
-                    description={`Sum of ${transactionCounts.incomeCount} income transactions in the selected period.`}
-                    trend={calculateTrend(periodIncome, previousPeriodStats?.income)}
+                    description="Total amount allocated for the current period."
                 />
                 <StatCard
-                    label="Total Deductions"
-                    value={formatCurrency(periodExpenses + transferTotal)}
-                    colorClass="bg-danger"
-                    description={`Sum of ${transactionCounts.expenseCount} transactions (Expenses + Transfers) in the selected period.`}
-                    trend={calculateTrend(periodExpenses + transferTotal, previousPeriodStats ? (previousPeriodStats.expenses + (dashboardTransactions.filter(t => t.type === 'transfer').reduce((s, x) => s + x.amount, 0))) : undefined)}
+                    label="Total Spent"
+                    value={formatCurrency(budgetStats?.spent || 0)}
+                    colorClass={budgetStats?.status === 'danger' ? 'bg-danger' : 'bg-warning'}
+                    description="Total amount spent in budgeted categories."
                 />
-
                 <StatCard
                     label="Budget Remaining"
                     value={formatCurrency(budgetStats?.remaining || 0)}
-                    colorClass={budgetStats?.status === 'danger' ? 'bg-danger' : budgetStats?.status === 'warning' ? 'bg-warning' : 'bg-primary'}
-                    description="Total budgeted amount minus expenses in budgeted categories."
+                    colorClass={budgetStats?.status === 'danger' ? 'bg-danger' : budgetStats?.status === 'warning' ? 'bg-warning' : 'bg-success'}
+                    description="Total budgeted amount minus expenses."
                     subValue={budgetStats ? (
                         <div className="flex flex-col gap-1 mt-2 text-xs font-medium">
                             <div className="flex justify-between items-center">
@@ -326,187 +302,177 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 />
             </section>
 
-            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
-                {/* Budget Health Card */}
-                <div className="bg-surface/50 backdrop-blur-xl p-6 rounded-4xl border border-border h-96 flex flex-col">
-                    {budgetStats && budgetDisplayPeriod ? (
-                        <div className="flex flex-col h-full">
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="text-sm font-medium text-text-muted mb-1">Budget Health</h3>
-                                    <span className="text-xs text-text-muted">{budgetDisplayPeriod.name}</span>
-                                </div>
-                                <Button variant="ghost" onClick={() => setIsBudgetProgressModalOpen(true)} className="!py-1 !px-2 text-xs h-auto hover:bg-surface-light rounded-lg text-text-muted hover:text-text-primary">
-                                    Details <Icons.ChevronRight className="w-3 h-3 ml-1" />
-                                </Button>
-                            </div>
-
-                            <div className="flex-grow flex flex-col items-center justify-center">
-                                <div className="mb-4">
-                                    <span className={`text-3xl font-bold ${budgetStats.status === 'success' ? 'text-success' :
-                                        budgetStats.status === 'warning' ? 'text-warning' : 'text-danger'
-                                        }`}>
-                                        {budgetStats.status === 'success' ? 'On Track' :
-                                            budgetStats.status === 'warning' ? 'Watch Out' : 'Over Budget'}
-                                    </span>
-                                </div>
-
-                                <div className="text-center mb-4">
-                                    <div className="text-xs text-text-muted mb-1">Percentage Used</div>
-                                    <span className={`text-2xl font-bold ${budgetStats.status === 'danger' ? 'text-danger' : 'text-success'
-                                        }`}>
-                                        {budgetStats.percentageSpent.toFixed(1)}%
-                                    </span>
-                                </div>
-
-                                <div className="w-full mb-4">
-                                    <div className="w-full bg-surface rounded-full h-2">
-                                        <div
-                                            className={`h-2 rounded-full transition-all ${budgetStats.status === 'success' ? 'bg-success' :
-                                                budgetStats.status === 'warning' ? 'bg-warning' : 'bg-danger'
-                                                }`}
-                                            style={{ width: `${Math.min(budgetStats.percentageSpent, 100)}%` }}
-                                        ></div>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3 w-full">
-                                    <div className="bg-surface-light p-2 rounded-lg text-center">
-                                        <div className="text-xs text-text-muted">Total Budget</div>
-                                        <div className="text-sm font-bold">{formatCurrency(budgetStats.totalBudget)}</div>
-                                    </div>
-                                    <div className="bg-surface-light p-2 rounded-lg text-center">
-                                        <div className="text-xs text-text-muted">Expenses</div>
-                                        <div className="text-sm font-bold">{formatCurrency(budgetStats.spent)}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex items-center justify-center h-full">
-                            <div className="text-center text-text-muted">
-                                <div className="text-sm font-medium mb-1">Budget Health</div>
-                                <div className="text-xs">Select a budget period</div>
-                            </div>
-                        </div>
-                    )}
+            <section className="bg-surface/50 backdrop-blur-xl p-6 rounded-4xl border border-border mb-12">
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 className="text-2xl font-bold">Budget Checklist</h3>
+                        <p className="text-sm text-text-muted mt-1">Track your progress and mark items as paid.</p>
+                    </div>
                 </div>
 
-                <div className="bg-surface/50 backdrop-blur-xl p-6 rounded-4xl border border-border h-96">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-bold">Spending Breakdown</h3>
-                        <Button variant="ghost" onClick={() => setIsBalanceTrendModalOpen(true)} className="!py-1 !px-3 text-xs">
-                            <Icons.Chart className="w-4 h-4" /> View Trend
-                        </Button>
-                    </div>
+                {budgetDisplayPeriod ? (
+                    <div className="space-y-4">
+                        {budgets.filter(b => b.budgetPeriodId === budgetDisplayPeriod.id).map(budget => {
+                            const periodStart = new Date(budgetDisplayPeriod.startDate + 'T00:00:00');
+                            const periodEnd = new Date(budgetDisplayPeriod.endDate + 'T23:59:59');
+                            const spent = transactions
+                                .filter(t => t.category === budget.category && t.type === 'expense')
+                                .filter(t => {
+                                    const transactionDate = new Date(t.date + 'T00:00:00');
+                                    return transactionDate >= periodStart && transactionDate <= periodEnd;
+                                })
+                                .reduce((sum, t) => sum + t.amount, 0);
 
-                    {spendingByCategory.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="90%">
-                            <PieChart>
-                                <Pie
-                                    data={spendingByCategory}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius="60%"
-                                    outerRadius="80%"
-                                    fill="#8884d8"
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                    nameKey="name"
-                                >
-                                    {spendingByCategory.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                    formatter={(value: number) => `${formatCurrency(value)} (${((value / periodExpenses) * 100).toFixed(1)}%)`}
-                                    contentStyle={{ backgroundColor: '#1A1A2E', border: '1px solid #27272A', borderRadius: '1rem' }}
-                                />
-                                <Legend iconSize={10} wrapperStyle={{ bottom: 25, fontSize: '12px' }} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    ) : <div className="flex items-center justify-center h-full text-text-muted">No expenses in this period.</div>}
-                </div>
+                            const remaining = budget.amount - spent;
+                            const isPaid = remaining <= 0;
+                            const trueProgressPercentage = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
+                            const isOverBudget = trueProgressPercentage > 100;
+                            const isWarning = trueProgressPercentage >= 85 && trueProgressPercentage <= 100;
+                            const progressColorClass = isOverBudget ? 'bg-danger' : isWarning ? 'bg-warning' : 'bg-success';
+                            const rowBaseClass = isOverBudget ? 'bg-danger/10 border-danger/30' : (isPaid ? 'bg-surface-light/30 border-warning/30 opacity-75' : 'bg-surface border-border hover:border-primary/50');
+                            
+                            const isExpanded = expandedBudgets.has(budget.category);
+                            const hasSubItems = budget.subItems && budget.subItems.length > 0;
 
-                <div className="bg-surface/50 backdrop-blur-xl p-6 rounded-4xl border border-border h-96">
-                    <div className="flex justify-between items-center mb-4">
-                        <div className="bg-surface-light p-1 rounded-xl flex gap-1">
-                            <button
-                                onClick={() => setRecentTransactionsView('recent')}
-                                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${recentTransactionsView === 'recent' ? 'bg-surface shadow-sm text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
-                            >
-                                Recent
-                            </button>
-                            <button
-                                onClick={() => setRecentTransactionsView('top')}
-                                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${recentTransactionsView === 'top' ? 'bg-surface shadow-sm text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
-                            >
-                                Top Spending
-                            </button>
-                            <button
-                                onClick={() => setRecentTransactionsView('categories')}
-                                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${recentTransactionsView === 'categories' ? 'bg-surface shadow-sm text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
-                            >
-                                Top Categories
-                            </button>
-                        </div>
-                        {recentTransactionsView === 'recent' && (
-                            <Button variant="ghost" onClick={() => setView('transactions')} className="!py-1 !px-2 text-xs h-auto hover:bg-surface-light rounded-lg text-text-muted hover:text-text-primary">
-                                View All <Icons.ChevronRight className="w-3 h-3 ml-1" />
-                            </Button>
-                        )}
-                    </div>
-                    <div className="space-y-3 h-[calc(100%-2.5rem)] overflow-y-auto pr-2">
-                        {recentTransactionsView === 'categories' ? (
-                            topCategoriesSpending.length > 0 ? (
-                                topCategoriesSpending.map(cat => {
-                                    const progressClass = cat.percentage >= 100 ? 'bg-danger' : cat.percentage > 70 ? 'bg-warning' : 'bg-success';
-                                    const remainingClass = cat.remaining < 0 ? 'text-danger' : cat.remaining < (cat.budgeted * 0.3) ? 'text-warning' : 'text-success';
-
-                                    return (
-                                        <div key={cat.category} className="p-3 rounded-xl bg-surface-light/30">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <p className="font-semibold">{cat.category}</p>
-                                                <div className="text-right">
-                                                    <p className="text-sm font-bold text-danger">-{formatCurrency(cat.spent)}</p>
-                                                    <p className="text-xs text-text-muted">of {formatCurrency(cat.budgeted)}</p>
+                            return (
+                                <div key={budget.category} className={`p-4 rounded-2xl border transition-all ${rowBaseClass}`}>
+                                    <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 ${hasSubItems ? 'cursor-pointer' : ''}`} onClick={() => hasSubItems && toggleBudgetExpanded(budget.category)}>
+                                        <div className="flex items-center gap-4 flex-1">
+                                            {/* Checkbox-like button */}
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (!isPaid && handleAddTransaction) {
+                                                        handleAddTransaction({
+                                                            type: 'expense',
+                                                            amount: remaining,
+                                                            category: budget.category,
+                                                            description: `${budget.category} Payment`,
+                                                            date: new Date().toISOString().split('T')[0]
+                                                        }, false);
+                                                    }
+                                                }}
+                                                disabled={isPaid}
+                                                className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${isPaid ? (isOverBudget ? 'bg-danger text-white' : 'bg-warning text-white') : 'bg-surface-light border-2 border-border hover:border-primary text-transparent hover:text-primary/20'}`}
+                                            >
+                                                <Icons.Check className="w-5 h-5" />
+                                            </button>
+                                            
+                                            <div className="flex-1">
+                                                <h4 className={`font-bold text-lg flex items-center gap-2 ${isPaid ? 'line-through text-text-muted' : ''}`}>
+                                                    {budget.category}
+                                                    {hasSubItems && (
+                                                        <Icons.ChevronRight className={`w-4 h-4 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                                                    )}
+                                                </h4>
+                                                <div className="w-full bg-surface-light rounded-full h-1.5 mt-2 overflow-hidden">
+                                                    <div 
+                                                        className={`h-full rounded-full transition-all ${progressColorClass}`} 
+                                                        style={{ width: `${Math.min(trueProgressPercentage, 100)}%` }}
+                                                    ></div>
                                                 </div>
                                             </div>
-                                            <div className="w-full bg-surface rounded-full h-1.5 mb-1">
-                                                <div className={`${progressClass} h-1.5 rounded-full transition-all`} style={{ width: `${Math.min(cat.percentage, 100)}%` }}></div>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-6 justify-between md:justify-end min-w-[250px]">
+                                            <div className="text-right">
+                                                <p className="text-xs text-text-muted">Spent</p>
+                                                <p className="font-semibold">{formatCurrency(spent)}</p>
                                             </div>
-                                            <div className="flex justify-between items-center text-xs">
-                                                <span className={remainingClass}>
-                                                    {cat.remaining >= 0 ? 'Remaining: ' : 'Over: '}{formatCurrency(Math.abs(cat.remaining))}
-                                                </span>
-                                                <span className="text-text-muted">{cat.percentage.toFixed(0)}%</span>
+                                            <div className="text-right">
+                                                <p className="text-xs text-text-muted">Budget</p>
+                                                <p className="font-semibold">{formatCurrency(budget.amount)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xs text-text-muted">Remaining</p>
+                                                <p className={`font-bold ${isPaid ? 'text-success' : 'text-primary'}`}>{formatCurrency(Math.max(0, remaining))}</p>
                                             </div>
                                         </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="text-center py-10 text-text-muted">No budget categories for this period.</div>
-                            )
-                        ) : (
-                            (recentTransactionsView === 'recent' ?
-                                (dashboardTransactions.length > 0 ? dashboardTransactions.slice(0, 10) : []) :
-                                topSpendingTransactions
-                            ).map(t => (
-                                <div key={t.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-surface-light/50 transition-colors">
-                                    <div>
-                                        <p className="font-semibold">{t.description}</p>
-                                        <p className="text-xs text-text-muted">{t.category} &middot; {new Date(t.date).toLocaleDateString()}</p>
                                     </div>
-                                    <p className={`font-bold ${t.type === 'income' ? 'text-success' : 'text-danger'}`}>
-                                        {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-                                    </p>
+
+                                    {isExpanded && hasSubItems && (
+                                        <div className="mt-4 pt-4 border-t border-border/50 pl-12 space-y-3 cursor-default" onClick={e => e.stopPropagation()}>
+                                            {budget.subItems!.map(sub => {
+                                                const subSpent = transactions
+                                                    .filter(t => t.category === budget.category && t.type === 'expense' && t.budget_sub_item_id === sub.id)
+                                                    .filter(t => {
+                                                        const transactionDate = new Date(t.date + 'T00:00:00');
+                                                        return transactionDate >= periodStart && transactionDate <= periodEnd;
+                                                    })
+                                                    .reduce((sum, t) => sum + t.amount, 0);
+
+                                                const subRemaining = sub.amount - subSpent;
+                                                const isSubPaid = subRemaining <= 0;
+                                                const trueSubProgress = sub.amount > 0 ? (subSpent / sub.amount) * 100 : 0;
+                                                const subOverBudget = trueSubProgress > 100;
+                                                const subWarning = trueSubProgress >= 85 && trueSubProgress <= 100;
+                                                const subProgressColorClass = subOverBudget ? 'bg-danger' : subWarning ? 'bg-warning' : 'bg-success';
+
+                                                return (
+                                                    <div key={sub.id} className="flex items-center justify-between gap-4">
+                                                        <div className="flex items-center gap-3 flex-1">
+                                                            <button 
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (!isSubPaid && handleAddTransaction) {
+                                                                        handleAddTransaction({
+                                                                            type: 'expense',
+                                                                            amount: subRemaining,
+                                                                            category: budget.category,
+                                                                            description: `${sub.name} Payment`,
+                                                                            date: new Date().toISOString().split('T')[0],
+                                                                            budget_sub_item_id: sub.id
+                                                                        }, false);
+                                                                    }
+                                                                }}
+                                                                disabled={isSubPaid}
+                                                                className={`w-6 h-6 rounded flex items-center justify-center flex-shrink-0 transition-colors ${isSubPaid ? (subOverBudget ? 'bg-danger text-white' : 'bg-warning text-white') : 'bg-surface border border-border hover:border-primary text-transparent hover:text-primary/20'}`}
+                                                            >
+                                                                <Icons.Check className="w-3 h-3" />
+                                                            </button>
+                                                            <div className="flex-1">
+                                                                <p className={`font-medium text-sm ${isSubPaid ? 'line-through text-text-muted' : ''}`}>{sub.name}</p>
+                                                                <div className="w-full bg-surface-light rounded-full h-1 mt-1 overflow-hidden">
+                                                                    <div 
+                                                                        className={`h-full rounded-full transition-all ${subProgressColorClass}`} 
+                                                                        style={{ width: `${Math.min(trueSubProgress, 100)}%` }}
+                                                                    ></div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-4 text-xs min-w-[150px] justify-end">
+                                                            <div className="text-right">
+                                                                <p className="text-text-muted">Spent</p>
+                                                                <p className="font-semibold">{formatCurrency(subSpent)}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-text-muted">Budget</p>
+                                                                <p className="font-semibold">{formatCurrency(sub.amount)}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
-                            ))
+                            );
+                        })}
+                        {budgets.filter(b => b.budgetPeriodId === budgetDisplayPeriod.id).length === 0 && (
+                            <div className="text-center py-10 text-text-muted">
+                                <p>No budget items for this period.</p>
+                                <Button variant="secondary" onClick={() => setView('budgets')} className="mt-4">
+                                    Create a Budget
+                                </Button>
+                            </div>
                         )}
-                        {recentTransactionsView !== 'categories' && dashboardTransactions.length === 0 && <div className="text-center py-10 text-text-muted">No transactions for this period.</div>}
                     </div>
-                </div>
-            </section >
+                ) : (
+                    <div className="text-center py-10 text-text-muted">
+                        <p>No budget period selected.</p>
+                    </div>
+                )}
+            </section>
 
             <Modal isOpen={isBalanceTrendModalOpen} onClose={() => setIsBalanceTrendModalOpen(false)} title="Balance Trend" className="max-w-4xl">
                 <div className="h-[60vh] p-4">
