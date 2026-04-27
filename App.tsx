@@ -295,10 +295,27 @@ function AppContent() {
         const period = budgetPeriods.find(p => p.id === dashboardPeriodFilter);
         if (!period) return 0;
 
-        const periodStart = new Date(period.startDate + 'T00:00:00');
+        const periodStartD = new Date(period.startDate + 'T00:00:00');
+        const periodEndD = new Date(period.endDate + 'T23:59:59');
+
+        // Find encompassing periods (where current period falls within)
+        const encompassingPeriods = budgetPeriods.filter(p => {
+            const start = new Date(p.startDate + 'T00:00:00');
+            const end = new Date(p.endDate + 'T23:59:59');
+            return start <= periodStartD && end >= periodEndD;
+        });
+
+        // Use the earliest start date of encompassing periods
+        const earliestStartD = encompassingPeriods.reduce((earliest, p) => {
+            const start = new Date(p.startDate + 'T00:00:00');
+            return start < earliest ? start : earliest;
+        }, periodStartD);
 
         return transactions
-            .filter(t => new Date(t.date) < periodStart)
+            .filter(t => {
+                const tDate = new Date(t.date + 'T00:00:00');
+                return tDate >= earliestStartD && tDate < periodStartD;
+            })
             .reduce((acc, t) => {
                 if (t.type === 'income') return acc + t.amount;
                 if (t.type === 'expense' || t.type === 'transfer') return acc - t.amount;
@@ -459,6 +476,7 @@ function AppContent() {
                         periodIncome={periodIncome}
                         periodExpenses={periodExpenses}
                         periodNet={periodNet}
+                        startingBalance={startingBalance}
                         totalBalance={totalBalance}
                         savingsRate={savingsRate}
                         formatCurrency={formatCurrency}
@@ -470,6 +488,7 @@ function AppContent() {
                         chartData={chartData}
                         spendingByCategory={spendingByCategory}
                         budgetDisplayPeriod={budgetDisplayPeriod}
+                        handleAddTransaction={handleAddTransaction}
                     />
                 )}
 
