@@ -439,7 +439,7 @@ function AppContent() {
 
     if (!session) {
         return (
-            <div className="min-h-screen bg-background text-text-primary relative overflow-hidden">
+            <div className="min-h-screen bg-background text-text-primary relative">
                 <BackgroundShapes />
                 <div className="relative z-10">
                     <Auth />
@@ -449,7 +449,7 @@ function AppContent() {
     }
 
     return (
-        <div className="min-h-screen bg-background text-text-primary relative overflow-hidden">
+        <div className="min-h-screen bg-background text-text-primary relative">
             <BackgroundShapes />
 
             <div className="relative z-10 container mx-auto px-4 py-8 max-w-7xl">

@@ -56,10 +56,10 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         )}
         <div className="text-center flex-1">
-          <h1 className="text-3xl md:text-6xl font-bold bg-gradient-to-r from-primary to-secondary text-transparent bg-clip-text mb-2">
+          {/* <h1 className="text-3xl md:text-6xl font-bold bg-gradient-to-r from-primary to-secondary text-transparent bg-clip-text mb-2">
             Finance Tracker
-          </h1>
-          <p className="text-text-secondary text-sm md:text-lg">Modern finance tracking with intelligent insights</p>
+          </h1> */}
+          {/* <p className="text-text-secondary text-sm md:text-lg">Modern finance tracking with intelligent insights</p> */}
         </div>
         <div className="w-10 md:w-12 flex justify-end relative">
           <MoreMenu

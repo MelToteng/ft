@@ -84,6 +84,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const [isBudgetProgressModalOpen, setIsBudgetProgressModalOpen] = React.useState(false);
     const [recentTransactionsView, setRecentTransactionsView] = React.useState<'recent' | 'top' | 'categories'>('recent');
     const [expandedBudgets, setExpandedBudgets] = React.useState<Set<string>>(new Set());
+    const [activeTooltip, setActiveTooltip] = React.useState<string | null>(null);
+    const [selectedStatCard, setSelectedStatCard] = React.useState<{label: string, value: React.ReactNode, colorClass: string, description?: string} | null>(null);
 
     const toggleBudgetExpanded = (category: string) => {
         setExpandedBudgets(prev => {
@@ -222,20 +224,78 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     return (
         <>
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 animate-fade-in gap-3">
-                <div className="flex flex-wrap gap-2 w-full md:w-auto">
-                    <Button variant="primary" onClick={() => setActiveModal('expense')} className="px-3 py-2">
-                        <Icons.Plus /> <span className="hidden sm:inline">Add </span>Expense
-                    </Button>
-                    <Button variant="secondary" onClick={() => setActiveModal('income')} className="px-3 py-2">
-                        <Icons.Plus /> <span className="hidden sm:inline">Add </span>Income
-                    </Button>
-                    <Button variant="secondary" onClick={() => setActiveModal('transfer')} className="px-3 py-2">
-                        <Icons.Plus /> <span className="hidden sm:inline">Add </span>Transfer
-                    </Button>
-                    <Button variant="secondary" onClick={() => setView('budgets')} className="px-3 py-2">
-                        <Icons.Chart /> <span className="hidden sm:inline">Budget </span>Planner
-                    </Button>
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 animate-fade-in gap-3">
+                {/* Action buttons: icon-only + tooltip on mobile, icon+text on md+ */}
+                <div className="flex justify-center md:justify-start flex-wrap gap-3 w-full md:w-auto">
+
+                    {/* Add Expense */}
+                    <div
+                        className="relative"
+                        onMouseEnter={() => setActiveTooltip('expense')}
+                        onMouseLeave={() => setActiveTooltip(null)}
+                    >
+                        <Button variant="primary" onClick={() => setActiveModal('expense')}>
+                            <Icons.TrendingDown />
+                            <span className="hidden md:inline">Add Expense</span>
+                        </Button>
+                        {activeTooltip === 'expense' && (
+                            <span className="md:hidden absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium bg-surface-light border border-border rounded-lg whitespace-nowrap z-50 shadow-custom">
+                                Add Expense
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Add Income */}
+                    <div
+                        className="relative"
+                        onMouseEnter={() => setActiveTooltip('income')}
+                        onMouseLeave={() => setActiveTooltip(null)}
+                    >
+                        <Button variant="secondary" onClick={() => setActiveModal('income')}>
+                            <Icons.TrendingUp />
+                            <span className="hidden md:inline">Add Income</span>
+                        </Button>
+                        {activeTooltip === 'income' && (
+                            <span className="md:hidden absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium bg-surface-light border border-border rounded-lg whitespace-nowrap z-50 shadow-custom">
+                                Add Income
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Add Transfer */}
+                    <div
+                        className="relative"
+                        onMouseEnter={() => setActiveTooltip('transfer')}
+                        onMouseLeave={() => setActiveTooltip(null)}
+                    >
+                        <Button variant="secondary" onClick={() => setActiveModal('transfer')}>
+                            <Icons.ArrowLeftRight />
+                            <span className="hidden md:inline">Add Transfer</span>
+                        </Button>
+                        {activeTooltip === 'transfer' && (
+                            <span className="md:hidden absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium bg-surface-light border border-border rounded-lg whitespace-nowrap z-50 shadow-custom">
+                                Add Transfer
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Budget Planner */}
+                    <div
+                        className="relative"
+                        onMouseEnter={() => setActiveTooltip('budgets')}
+                        onMouseLeave={() => setActiveTooltip(null)}
+                    >
+                        <Button variant="secondary" onClick={() => setView('budgets')}>
+                            <Icons.Chart />
+                            <span className="hidden md:inline">Budget Planner</span>
+                        </Button>
+                        {activeTooltip === 'budgets' && (
+                            <span className="md:hidden absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium bg-surface-light border border-border rounded-lg whitespace-nowrap z-50 shadow-custom">
+                                Budget Planner
+                            </span>
+                        )}
+                    </div>
+
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                     <select
@@ -265,42 +325,73 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
 
-            <section className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12 animate-fade-in">
+            <section className="grid grid-cols-3 gap-2 md:gap-6 mb-8 md:mb-12 animate-fade-in sticky top-2 z-50 bg-background/95 backdrop-blur-xl py-4 -mx-4 px-4">
                 <StatCard
                     label="Total Budgeted"
                     value={formatCurrency(budgetStats?.totalBudget || 0)}
                     colorClass="bg-primary"
                     description="Total amount allocated for the current period."
+                    onClick={() => setSelectedStatCard({
+                        label: "Total Budgeted",
+                        value: formatCurrency(budgetStats?.totalBudget || 0),
+                        colorClass: "bg-primary",
+                        description: "Total amount allocated for the current period."
+                    })}
                 />
                 <StatCard
                     label="Total Spent"
                     value={formatCurrency(budgetStats?.spent || 0)}
                     colorClass={budgetStats?.status === 'danger' ? 'bg-danger' : 'bg-warning'}
                     description="Total amount spent in budgeted categories."
+                    onClick={() => setSelectedStatCard({
+                        label: "Total Spent",
+                        value: formatCurrency(budgetStats?.spent || 0),
+                        colorClass: budgetStats?.status === 'danger' ? 'bg-danger' : 'bg-warning',
+                        description: "Total amount spent in budgeted categories."
+                    })}
                 />
                 <StatCard
                     label="Budget Remaining"
                     value={formatCurrency(budgetStats?.remaining || 0)}
                     colorClass={budgetStats?.status === 'danger' ? 'bg-danger' : budgetStats?.status === 'warning' ? 'bg-warning' : 'bg-success'}
                     description="Total budgeted amount minus expenses."
-                    subValue={budgetStats ? (
-                        <div className="flex flex-col gap-1 mt-2 text-xs font-medium">
-                            <div className="flex justify-between items-center">
-                                <span className="text-text-muted">Total Used:</span>
-                                <span className={budgetStats.status === 'danger' ? 'text-danger' : 'text-success'}>
-                                    {budgetStats.percentageSpent.toFixed(0)}%
-                                </span>
-                            </div>
-                            <div className="w-full bg-surface-light rounded-full h-1 mt-1">
-                                <div
-                                    className={`h-full rounded-full ${budgetStats.status === 'danger' ? 'bg-danger' : budgetStats.status === 'warning' ? 'bg-warning' : 'bg-primary'}`}
-                                    style={{ width: `${Math.min(budgetStats.percentageSpent, 100)}%` }}
-                                ></div>
-                            </div>
-                        </div>
-                    ) : <span className="text-xs text-text-muted italic">No active budget</span>}
+                    onClick={() => setSelectedStatCard({
+                        label: "Budget Remaining",
+                        value: formatCurrency(budgetStats?.remaining || 0),
+                        colorClass: budgetStats?.status === 'danger' ? 'bg-danger' : budgetStats?.status === 'warning' ? 'bg-warning' : 'bg-success',
+                        description: "Total budgeted amount minus expenses."
+                    })}
                 />
             </section>
+
+            <Modal isOpen={!!selectedStatCard} onClose={() => setSelectedStatCard(null)} title={selectedStatCard?.label || ''}>
+                {selectedStatCard && (
+                    <div className="p-4 space-y-6">
+                        <div className={`text-4xl md:text-6xl font-bold ${selectedStatCard.colorClass.replace('bg-', 'text-')}`}>
+                            {selectedStatCard.value}
+                        </div>
+                        <p className="text-lg text-text-secondary leading-relaxed">
+                            {selectedStatCard.description}
+                        </p>
+                        {selectedStatCard.label === "Budget Remaining" && budgetStats && (
+                             <div className="flex flex-col gap-2 mt-4 p-4 bg-surface-light rounded-2xl">
+                                <div className="flex justify-between items-center text-lg">
+                                    <span className="text-text-muted">Budget Utilization:</span>
+                                    <span className={`font-bold ${budgetStats.status === 'danger' ? 'text-danger' : 'text-success'}`}>
+                                        {budgetStats.percentageSpent.toFixed(1)}%
+                                    </span>
+                                </div>
+                                <div className="w-full bg-surface rounded-full h-3 overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-1000 ${budgetStats.status === 'danger' ? 'bg-danger' : budgetStats.status === 'warning' ? 'bg-warning' : 'bg-primary'}`}
+                                        style={{ width: `${Math.min(budgetStats.percentageSpent, 100)}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </Modal>
 
             <section className="bg-surface/50 backdrop-blur-xl p-6 rounded-4xl border border-border mb-12">
                 <div className="flex justify-between items-center mb-6">
@@ -374,24 +465,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                             </div>
                                         </div>
                                         
-                                        <div className="flex items-center gap-6 justify-between md:justify-end min-w-[250px]">
-                                            <div className="text-right">
-                                                <p className="text-xs text-text-muted">Spent</p>
-                                                <p className="font-semibold">{formatCurrency(spent)}</p>
+                                        <div className="flex items-center gap-2 md:gap-6 justify-between w-full md:w-auto md:justify-end md:min-w-[250px] mt-2 md:mt-0 pt-3 md:pt-0 border-t border-border/30 md:border-t-0 overflow-hidden">
+                                            <div className="text-center md:text-right flex-1 md:flex-none min-w-0">
+                                                <p className="text-[10px] md:text-xs text-text-muted uppercase tracking-wider mb-1 truncate">Spent</p>
+                                                <p className="font-semibold text-[11px] sm:text-sm md:text-base truncate">{formatCurrency(spent)}</p>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-xs text-text-muted">Budget</p>
-                                                <p className="font-semibold">{formatCurrency(budget.amount)}</p>
+                                            <div className="text-center md:text-right flex-1 md:flex-none min-w-0">
+                                                <p className="text-[10px] md:text-xs text-text-muted uppercase tracking-wider mb-1 truncate">Budget</p>
+                                                <p className="font-semibold text-[11px] sm:text-sm md:text-base truncate">{formatCurrency(budget.amount)}</p>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-xs text-text-muted">Remaining</p>
-                                                <p className={`font-bold ${isPaid ? 'text-success' : 'text-primary'}`}>{formatCurrency(Math.max(0, remaining))}</p>
+                                            <div className="text-center md:text-right flex-1 md:flex-none min-w-0">
+                                                <p className="text-[10px] md:text-xs text-text-muted uppercase tracking-wider mb-1 truncate">Remaining</p>
+                                                <p className={`font-bold text-[11px] sm:text-sm md:text-base truncate ${isPaid ? 'text-success' : 'text-primary'}`}>{formatCurrency(Math.max(0, remaining))}</p>
                                             </div>
                                         </div>
                                     </div>
 
                                     {isExpanded && hasSubItems && (
-                                        <div className="mt-4 pt-4 border-t border-border/50 pl-12 space-y-3 cursor-default" onClick={e => e.stopPropagation()}>
+                                        <div className="mt-4 pt-4 border-t border-border/50 md:pl-12 space-y-3 cursor-default" onClick={e => e.stopPropagation()}>
                                             {budget.subItems!.map(sub => {
                                                 const subSpent = transactions
                                                     .filter(t => t.category === budget.category && t.type === 'expense' && t.budget_sub_item_id === sub.id)
@@ -409,8 +500,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                 const subProgressColorClass = subOverBudget ? 'bg-danger' : subWarning ? 'bg-warning' : 'bg-success';
 
                                                 return (
-                                                    <div key={sub.id} className="flex items-center justify-between gap-4">
-                                                        <div className="flex items-center gap-3 flex-1">
+                                                    <div key={sub.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-surface-light/20 rounded-xl border border-border/30">
+                                                        <div className="flex items-center gap-3 flex-1 w-full">
                                                             <button 
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
@@ -430,9 +521,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                             >
                                                                 <Icons.Check className="w-3 h-3" />
                                                             </button>
-                                                            <div className="flex-1">
-                                                                <p className={`font-medium text-sm ${isSubPaid ? 'line-through text-text-muted' : ''}`}>{sub.name}</p>
-                                                                <div className="w-full bg-surface-light rounded-full h-1 mt-1 overflow-hidden">
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className={`font-medium text-sm truncate ${isSubPaid ? 'line-through text-text-muted' : ''}`}>{sub.name}</p>
+                                                                <div className="w-full bg-surface-light rounded-full h-1 mt-1.5 overflow-hidden">
                                                                     <div 
                                                                         className={`h-full rounded-full transition-all ${subProgressColorClass}`} 
                                                                         style={{ width: `${Math.min(trueSubProgress, 100)}%` }}
@@ -440,14 +531,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center gap-4 text-xs min-w-[150px] justify-end">
-                                                            <div className="text-right">
-                                                                <p className="text-text-muted">Spent</p>
-                                                                <p className="font-semibold">{formatCurrency(subSpent)}</p>
+                                                        <div className="flex items-center gap-3 text-[11px] w-full sm:w-auto sm:min-w-[150px] justify-between sm:justify-end pl-9 sm:pl-0 mt-1 sm:mt-0 border-t sm:border-none border-border/30 pt-2 sm:pt-0 overflow-hidden">
+                                                            <div className="text-left sm:text-right flex-1 sm:flex-none min-w-0">
+                                                                <p className="text-[10px] text-text-muted uppercase tracking-wider truncate">Spent</p>
+                                                                <p className="font-semibold truncate">{formatCurrency(subSpent)}</p>
                                                             </div>
-                                                            <div className="text-right">
-                                                                <p className="text-text-muted">Budget</p>
-                                                                <p className="font-semibold">{formatCurrency(sub.amount)}</p>
+                                                            <div className="text-right flex-1 sm:flex-none min-w-0">
+                                                                <p className="text-[10px] text-text-muted uppercase tracking-wider truncate">Budget</p>
+                                                                <p className="font-semibold truncate">{formatCurrency(sub.amount)}</p>
                                                             </div>
                                                         </div>
                                                     </div>

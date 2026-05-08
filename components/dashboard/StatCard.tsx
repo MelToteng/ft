@@ -12,21 +12,25 @@ interface StatCardProps {
         label?: string;
     };
     subValue?: React.ReactNode;
+    onClick?: () => void;
 }
 
-export const StatCard: React.FC<StatCardProps> = ({ label, value, colorClass, description, trend, subValue }) => {
+export const StatCard: React.FC<StatCardProps> = ({ label, value, colorClass, description, trend, subValue, onClick }) => {
     const [showInfo, setShowInfo] = useState(false);
 
     return (
-        <div className="bg-surface/50 backdrop-blur-xl p-5 md:p-6 rounded-4xl border border-border relative transition-transform duration-300 hover:-translate-y-1 hover:shadow-custom-lg group flex flex-col justify-between h-full min-w-0">
-            <div className={`absolute top-0 left-0 right-0 h-1.5 rounded-t-4xl ${colorClass}`}></div>
+        <div 
+            onClick={onClick}
+            className={`bg-surface/50 backdrop-blur-xl p-2 md:p-6 rounded-2xl md:rounded-4xl border border-border relative transition-transform duration-300 hover:-translate-y-1 hover:shadow-custom-lg group flex flex-col justify-between h-full min-w-0 overflow-hidden ${onClick ? 'cursor-pointer active:scale-95' : ''}`}
+        >
+            <div className={`absolute top-0 left-0 right-0 h-1.5 rounded-t-2xl md:rounded-t-4xl ${colorClass}`}></div>
 
             <div className="flex justify-between items-start mb-2">
-                <p className="text-sm font-medium text-text-secondary uppercase tracking-wider truncate flex-1 mr-2">{label}</p>
+                <p className="text-[10px] md:text-sm font-medium text-text-secondary uppercase tracking-wider truncate flex-1 mr-1 md:mr-2">{label}</p>
                 {description && (
                     <button
                         onClick={() => setShowInfo(!showInfo)}
-                        className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-full hover:bg-surface-light"
+                        className="hidden md:flex text-text-muted hover:text-text-primary transition-colors p-1 rounded-full hover:bg-surface-light"
                         title="More info"
                     >
                         <Icons.Info className="w-4 h-4" />
@@ -37,7 +41,7 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, colorClass, de
             <div className="relative min-h-[3rem] flex-grow flex flex-col justify-center">
                 <div className={`transition-opacity duration-300 ${showInfo ? 'opacity-0 pointer-events-none absolute' : 'opacity-100'}`}>
                     <div className="flex items-baseline gap-2 flex-wrap min-w-0">
-                        <div className={`text-2xl md:text-3xl font-bold break-words leading-tight ${colorClass.replace('bg-', 'text-')}`}>
+                        <div className={`text-[10px] sm:text-xs md:text-3xl font-bold break-words leading-tight ${colorClass.replace('bg-', 'text-')}`}>
                             {value}
                         </div>
                         {trend && (
@@ -53,7 +57,7 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, colorClass, de
                     </div>
                 </div>
                 {subValue && (
-                    <div className="mt-1 text-sm text-text-secondary">
+                    <div className="mt-1 text-[10px] md:text-sm text-text-secondary hidden md:block">
                         {subValue}
                     </div>
                 )}
