@@ -68,6 +68,15 @@ export const Icons = {
   Download: ({ className = 'w-5 h-5 flex-shrink-0' }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
   ),
+  TrendingDown: ({ className = 'w-5 h-5 flex-shrink-0' }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>
+  ),
+  TrendingUp: ({ className = 'w-5 h-5 flex-shrink-0' }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+  ),
+  ArrowLeftRight: ({ className = 'w-5 h-5 flex-shrink-0' }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+  ),
 };
 
 // --- REUSABLE UI COMPONENTS ---
@@ -91,7 +100,7 @@ export const Button = <E extends React.ElementType = typeof defaultElement>({
 }: ButtonProps<E>) => {
   const Component = (as || defaultElement) as React.ElementType;
 
-  const baseClasses = 'px-6 py-3 rounded-2xl font-semibold text-sm transition-all duration-300 flex items-center justify-center gap-2 shadow-custom hover:-translate-y-0.5 hover:shadow-custom-lg focus:outline-none focus:ring-4 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-custom';
+  const baseClasses = 'px-3 py-1.5 md:px-6 md:py-3 rounded-2xl font-semibold text-xs md:text-sm transition-all duration-300 flex items-center justify-center gap-1.5 md:gap-2 shadow-custom hover:-translate-y-0.5 hover:shadow-custom-lg focus:outline-none focus:ring-4 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-custom';
   const variantClasses = {
     primary: 'bg-gradient-to-r from-primary to-primary-dark text-white',
     secondary: 'bg-surface-light border border-border-light text-text-primary hover:bg-surface-light/80',
