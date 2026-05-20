@@ -30,7 +30,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { isInstallable, promptInstall } = useInstallPrompt();
 
   return (
-    <header className="my-8 animate-slide-down relative px-4">
+    <header className="my-8 animate-slide-down relative px-4 z-[60]">
       <div className="flex items-center justify-between">
         <div className="w-10 md:w-12 flex justify-start">
           <button
