@@ -4,7 +4,7 @@ import { getShoppingLists, createShoppingList, deleteShoppingList } from '../../
 import { Button, Icons, Modal, FormInput } from '../ui';
 
 interface ShoppingListViewProps {
-    onNavigate: (view: 'dashboard' | 'shopping-list-detail', listId?: number) => void;
+    onNavigate: (view: 'dashboard' | 'wish-list-detail', listId?: number) => void;
     formatCurrency: (value: number) => string;
 }
 
@@ -66,7 +66,7 @@ export const ShoppingListView: React.FC<ShoppingListViewProps> = ({ onNavigate, 
         <div className="animate-fade-in py-8">
             <header className="flex flex-col md:flex-row justify-between md:items-center mb-8 gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary text-transparent bg-clip-text">Shopping Lists</h1>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary text-transparent bg-clip-text">Wish Lists</h1>
                     <p className="text-text-secondary mt-1">Plan your purchases and track spending.</p>
                 </div>
                 <div className="flex gap-3">
@@ -94,7 +94,7 @@ export const ShoppingListView: React.FC<ShoppingListViewProps> = ({ onNavigate, 
                         return (
                             <div
                                 key={list.id}
-                                onClick={() => onNavigate('shopping-list-detail', list.id)}
+                                onClick={() => onNavigate('wish-list-detail', list.id)}
                                 className="bg-surface border border-border rounded-2xl p-6 hover:shadow-custom-lg transition-all cursor-pointer group relative overflow-hidden"
                             >
                                 <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-primary to-secondary opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -149,7 +149,7 @@ export const ShoppingListView: React.FC<ShoppingListViewProps> = ({ onNavigate, 
                             <div className="w-16 h-16 bg-surface rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                                 <Icons.Sparkles className="w-8 h-8 text-primary" />
                             </div>
-                            <h3 className="text-lg font-semibold text-text-primary mb-2">No shopping lists yet</h3>
+                            <h3 className="text-lg font-semibold text-text-primary mb-2">No wish lists yet</h3>
                             <p className="text-text-secondary mb-6">Create a list to start planning your purchases.</p>
                             <Button onClick={() => setIsCreateModalOpen(true)}>
                                 Create First List

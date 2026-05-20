@@ -57,7 +57,7 @@ function AppContent() {
     const [isInsightLoading, setIsInsightLoading] = useState(false);
     const [insightError, setInsightError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [view, setView] = useState<'dashboard' | 'budgets' | 'transactions' | 'recurring' | 'shopping-list' | 'shopping-list-detail'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'budgets' | 'transactions' | 'recurring' | 'wish-list' | 'wish-list-detail'>('dashboard');
     const [selectedListId, setSelectedListId] = useState<number | undefined>(undefined);
     const [dashboardPeriodFilter, setDashboardPeriodFilter] = useState<number | 'all'>('all'); // Will be updated in loadData
     const [isBalanceTrendModalOpen, setIsBalanceTrendModalOpen] = useState(false);
@@ -460,7 +460,7 @@ function AppContent() {
                     onCategories={() => setActiveModal('categories')}
                     onGetInsight={handleGetInsight}
                     onViewAllTransactions={() => setView('transactions')}
-                    onShoppingLists={() => setView('shopping-list')}
+                    onWishLists={() => setView('wish-list')}
                     isInsightLoading={isInsightLoading}
                 />
 
@@ -532,7 +532,7 @@ function AppContent() {
                     />
                 )}
 
-                {view === 'shopping-list' && (
+                {view === 'wish-list' && (
                     <ShoppingListView
                         onNavigate={(nextView, listId) => {
                             if (listId) setSelectedListId(listId);
@@ -542,10 +542,10 @@ function AppContent() {
                     />
                 )}
 
-                {view === 'shopping-list-detail' && selectedListId && (
+                {view === 'wish-list-detail' && selectedListId && (
                     <ShoppingListDetailView
                         listId={selectedListId}
-                        onBack={() => setView('shopping-list')}
+                        onBack={() => setView('wish-list')}
                         formatCurrency={formatCurrency}
                         budgets={budgets}
                         budgetPeriods={budgetPeriods}

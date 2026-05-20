@@ -105,7 +105,7 @@ export const Button = <E extends React.ElementType = typeof defaultElement>({
     primary: 'bg-gradient-to-r from-primary to-primary-dark text-white',
     secondary: 'bg-surface-light border border-border-light text-text-primary hover:bg-surface-light/80',
     ghost: 'bg-transparent shadow-none text-text-secondary hover:text-text-primary hover:bg-surface-light/50',
-    danger: 'bg-danger/80 border border-danger text-white hover:bg-danger',
+    danger: 'bg-danger border border-danger text-white hover:opacity-90',
   };
 
   return (

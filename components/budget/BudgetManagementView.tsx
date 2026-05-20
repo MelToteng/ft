@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BudgetPeriod, BudgetItem, BudgetSubItem, Transaction } from '../../types';
+import { BudgetPeriod, BudgetItem, BudgetSubItem, Transaction, ShoppingList } from '../../types';
 import { Button, FormInput, Icons, Modal } from '../../components/ui';
 import { BudgetCategoryModal } from './BudgetCategoryModal';
+import { getShoppingLists, createShoppingList } from '../../services/supabaseService';
+import { ShoppingListDetailView } from '../shopping/ShoppingListDetailView';
 
 interface BudgetManagementViewProps {
     onClose: () => void;
@@ -36,6 +38,54 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
     const [copyFromPeriodId, setCopyFromPeriodId] = useState<number | ''>('');
     const [transactionModalCategory, setTransactionModalCategory] = useState<string | null>(null);
+
+    // New states for Layout
+    const [isPeriodsExpanded, setIsPeriodsExpanded] = useState(false);
+    const [isWishListExpanded, setIsWishListExpanded] = useState(true);
+    const [wishLists, setWishLists] = useState<ShoppingList[]>([]);
+    const [isLoadingWishLists, setIsLoadingWishLists] = useState(false);
+    
+    // States for Wish List Modals
+    const [isCreateWishListModalOpen, setIsCreateWishListModalOpen] = useState(false);
+    const [newWishListName, setNewWishListName] = useState('');
+    const [isCreatingWishList, setIsCreatingWishList] = useState(false);
+    const [editingWishListId, setEditingWishListId] = useState<number | null>(null);
+
+    const loadWishLists = async () => {
+        setIsLoadingWishLists(true);
+        try {
+            const lists = await getShoppingLists();
+            setWishLists(lists);
+        } catch (err) {
+            console.error("Failed to load wish lists:", err);
+        } finally {
+            setIsLoadingWishLists(false);
+        }
+    };
+
+    useEffect(() => {
+        loadWishLists();
+    }, []);
+
+    const handleCreateWishList = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newWishListName.trim()) return;
+
+        setIsCreatingWishList(true);
+        try {
+            await createShoppingList({
+                name: newWishListName,
+                status: 'active'
+            });
+            setNewWishListName('');
+            setIsCreateWishListModalOpen(false);
+            loadWishLists();
+        } catch (error) {
+            console.error('Error creating wish list:', error);
+        } finally {
+            setIsCreatingWishList(false);
+        }
+    };
 
     useEffect(() => {
         if (budgetPeriods.length > 0 && !activePeriodId) {
@@ -303,41 +353,140 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 bg-surface/50 backdrop-blur-xl p-8 rounded-4xl border border-border">
-                {/* Left Column: Period List */}
-                <div className="lg:col-span-1 lg:border-r lg:border-border-light lg:pr-6">
-                    <h3 className="text-xl font-bold mb-4">Budget Periods</h3>
-
-                    {/* Mobile Dropdown View */}
-                    <div className="lg:hidden">
-                        <select
-                            value={activePeriodId || ''}
-                            onChange={e => handleSelectPeriod(e.target.value === 'new' ? 'new' : Number(e.target.value))}
-                            className="w-full bg-surface-light border border-border rounded-xl px-4 py-2 text-text-primary focus:ring-2 focus:ring-primary focus:outline-none mb-4"
+                {/* Left Column: Period List & Wish List */}
+                <div className="lg:col-span-1 lg:border-r lg:border-border-light lg:pr-6 flex flex-col gap-6">
+                    
+                    {/* Budget Periods Section */}
+                    <div className="bg-surface-light/30 rounded-2xl border border-border p-4">
+                        <div 
+                            className="flex justify-between items-center cursor-pointer mb-4" 
+                            onClick={() => { 
+                                setIsPeriodsExpanded(!isPeriodsExpanded); 
+                                if (!isPeriodsExpanded) setIsWishListExpanded(false); 
+                            }}
                         >
-                            {budgetPeriods.map(p => (
-                                <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                            <option value="new">✚ Create New Period...</option>
-                        </select>
+                            <h3 className="text-xl font-bold flex items-center gap-2">
+                                Budget Periods
+                                {isPeriodsExpanded ? <Icons.ChevronUp className="w-5 h-5 text-text-muted" /> : <Icons.ChevronDown className="w-5 h-5 text-text-muted" />}
+                            </h3>
+                            {!isPeriodsExpanded && (
+                                <Button 
+                                    variant="secondary" 
+                                    onClick={(e) => { e.stopPropagation(); handleSelectPeriod('new'); }} 
+                                    className="!py-1 !px-3 text-xs"
+                                >
+                                    <Icons.Plus className="w-3 h-3" /> New
+                                </Button>
+                            )}
+                        </div>
+
+                        {isPeriodsExpanded && (
+                            <>
+                                {/* Mobile Dropdown View */}
+                                <div className="lg:hidden mb-4">
+                                    <select
+                                        value={activePeriodId || ''}
+                                        onChange={e => handleSelectPeriod(e.target.value === 'new' ? 'new' : Number(e.target.value))}
+                                        className="w-full bg-surface border border-border rounded-xl px-4 py-2 text-text-primary focus:ring-2 focus:ring-primary focus:outline-none"
+                                    >
+                                        {budgetPeriods.map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                        <option value="new">✚ Create New Period...</option>
+                                    </select>
+                                </div>
+
+                                {/* Desktop List View */}
+                                <div className="hidden lg:block">
+                                    <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+                                        {budgetPeriods.map(p => (
+                                            <button
+                                                key={p.id}
+                                                onClick={() => handleSelectPeriod(p.id)}
+                                                className={`w-full text-left p-3 rounded-xl transition-colors text-sm ${activePeriodId === p.id ? 'bg-primary/20 text-primary-light' : 'hover:bg-surface-light'}`}
+                                            >
+                                                <p className="font-semibold">{p.name}</p>
+                                                <p className={`text-xs ${activePeriodId === p.id ? 'text-primary-light/80' : 'text-text-muted'}`}>
+                                                    {new Date(p.startDate + 'T00:00:00').toLocaleDateString()} - {new Date(p.endDate + 'T00:00:00').toLocaleDateString()}
+                                                </p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <Button variant="secondary" onClick={() => handleSelectPeriod('new')} className="w-full mt-4 !py-2 text-sm"><Icons.Plus /> Create New Period</Button>
+                                </div>
+                            </>
+                        )}
                     </div>
 
-                    {/* Desktop List View */}
-                    <div className="hidden lg:block">
-                        <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                            {budgetPeriods.map(p => (
-                                <button
-                                    key={p.id}
-                                    onClick={() => handleSelectPeriod(p.id)}
-                                    className={`w-full text-left p-3 rounded-xl transition-colors text-sm ${activePeriodId === p.id ? 'bg-primary/20 text-primary-light' : 'hover:bg-surface-light'}`}
+                    {/* Wish List Section */}
+                    <div className="bg-surface-light/30 rounded-2xl border border-border p-4">
+                        <div 
+                            className="flex justify-between items-center cursor-pointer" 
+                            onClick={() => { 
+                                setIsWishListExpanded(!isWishListExpanded); 
+                                if (!isWishListExpanded) setIsPeriodsExpanded(false); 
+                            }}
+                        >
+                            <h3 className="text-xl font-bold flex items-center gap-2">
+                                Wish List
+                                {isWishListExpanded ? <Icons.ChevronUp className="w-5 h-5 text-text-muted" /> : <Icons.ChevronDown className="w-5 h-5 text-text-muted" />}
+                            </h3>
+                            {isWishListExpanded && (
+                                <Button 
+                                    variant="secondary" 
+                                    onClick={(e) => { e.stopPropagation(); setIsCreateWishListModalOpen(true); }} 
+                                    className="!py-1 !px-3 text-xs"
                                 >
-                                    <p className="font-semibold">{p.name}</p>
-                                    <p className={`text-xs ${activePeriodId === p.id ? 'text-primary-light/80' : 'text-text-muted'}`}>
-                                        {new Date(p.startDate + 'T00:00:00').toLocaleDateString()} - {new Date(p.endDate + 'T00:00:00').toLocaleDateString()}
-                                    </p>
-                                </button>
-                            ))}
+                                    <Icons.Plus className="w-3 h-3" /> New
+                                </Button>
+                            )}
                         </div>
-                        <Button variant="secondary" onClick={() => handleSelectPeriod('new')} className="w-full mt-4 !py-2 text-sm"><Icons.Plus /> Create New Period</Button>
+
+                        {isWishListExpanded && (
+                            <div className="mt-4 space-y-4 max-h-[40vh] overflow-y-auto">
+                                {isLoadingWishLists ? (
+                                    <div className="text-center py-4"><span className="animate-pulse text-text-muted">Loading...</span></div>
+                                ) : wishLists.length > 0 ? (
+                                    wishLists.filter(list => {
+                                        if (list.status === 'archived') return false;
+                                        const isFullyChecked = list.items && list.items.length > 0 && list.items.every(i => i.is_purchased);
+                                        return !isFullyChecked;
+                                    }).map(list => {
+                                        const listTotal = list.items?.reduce((sum, item) => sum + (item.estimated_cost || 0), 0) || 0;
+                                        return (
+                                            <div key={list.id} className="bg-surface border border-border rounded-xl p-3 relative group">
+                                                <button 
+                                                    onClick={() => setEditingWishListId(list.id)}
+                                                    className="absolute top-2 right-2 p-1.5 bg-surface-light rounded-md text-text-muted hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                                    title="Edit Wish List"
+                                                >
+                                                    <Icons.Edit className="w-4 h-4" />
+                                                </button>
+                                                <div className="flex justify-between items-center mb-2 pr-8">
+                                                    <h4 className="font-bold text-sm truncate">{list.name}</h4>
+                                                    <span className="text-xs font-semibold text-primary">{formatCurrency(listTotal)}</span>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    {list.items?.map(item => (
+                                                        <div key={item.id} className="flex justify-between items-center text-xs text-text-secondary pl-2 border-l-2 border-primary/30">
+                                                            <span className={`truncate ${item.is_purchased ? 'line-through opacity-50' : ''}`}>{item.name}</span>
+                                                            <span className={item.is_purchased ? 'line-through opacity-50' : ''}>{formatCurrency(item.estimated_cost)}</span>
+                                                        </div>
+                                                    ))}
+                                                    {(!list.items || list.items.length === 0) && (
+                                                        <p className="text-xs text-text-muted italic">No items yet</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="text-center py-4 text-text-muted text-sm">
+                                        No wish lists found. You can create them here.
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -630,6 +779,46 @@ export const BudgetManagementView: React.FC<BudgetManagementViewProps> = ({
                         </div>
                     );
                 })()}
+            </Modal>
+            <Modal
+                isOpen={isCreateWishListModalOpen}
+                onClose={() => setIsCreateWishListModalOpen(false)}
+                title="Create Wish List"
+            >
+                <form onSubmit={handleCreateWishList}>
+                    <FormInput
+                        label="List Name"
+                        id="wishListName"
+                        value={newWishListName}
+                        onChange={e => setNewWishListName(e.target.value)}
+                        placeholder="e.g., Electronics"
+                        autoFocus
+                    />
+                    <div className="flex justify-end gap-3 mt-6">
+                        <Button type="button" variant="ghost" onClick={() => setIsCreateWishListModalOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={!newWishListName.trim() || isCreatingWishList}>
+                            {isCreatingWishList ? 'Creating...' : 'Create List'}
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
+
+            <Modal
+                isOpen={editingWishListId !== null}
+                onClose={() => { setEditingWishListId(null); loadWishLists(); }}
+                className="max-w-4xl max-h-[90vh] overflow-y-auto"
+            >
+                {editingWishListId && (
+                    <ShoppingListDetailView
+                        listId={editingWishListId}
+                        onBack={() => { setEditingWishListId(null); loadWishLists(); }}
+                        formatCurrency={formatCurrency}
+                        budgets={budgets}
+                        budgetPeriods={budgetPeriods}
+                    />
+                )}
             </Modal>
         </div>
     );

@@ -12,7 +12,7 @@ interface HeaderProps {
   onCategories: () => void;
   onGetInsight: () => void;
   onViewAllTransactions: () => void;
-  onShoppingLists: () => void;
+  onWishLists: () => void;
   isInsightLoading?: boolean;
 }
 
@@ -23,14 +23,14 @@ export const Header: React.FC<HeaderProps> = ({
   onCategories,
   onGetInsight,
   onViewAllTransactions,
-  onShoppingLists,
+  onWishLists,
   isInsightLoading = false,
 }) => {
   const { theme, toggleTheme } = useTheme();
   const { isInstallable, promptInstall } = useInstallPrompt();
 
   return (
-    <header className="my-8 animate-slide-down relative px-4">
+    <header className="my-8 animate-slide-down relative px-4 z-[60]">
       <div className="flex items-center justify-between">
         <div className="w-10 md:w-12 flex justify-start">
           <button
@@ -69,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
             onGetInsight={onGetInsight}
             onViewAllTransactions={onViewAllTransactions}
             onSignOut={onSignOut}
-            onShoppingLists={onShoppingLists}
+            onWishLists={onWishLists}
             isInsightLoading={isInsightLoading}
           />
         </div>
