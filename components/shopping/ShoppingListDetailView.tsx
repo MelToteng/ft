@@ -355,11 +355,11 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
 
         const totalActual = list.items?.reduce((sum, item) => sum + (item.is_purchased ? item.actual_cost : 0), 0) || 0;
 
-        if (window.confirm(`Complete shopping? This will create a transaction for ${formatCurrency(totalActual)}.`)) {
+        if (window.confirm(`Complete purchase? This will create a transaction for ${formatCurrency(totalActual)}.`)) {
             try {
                 // Create transaction
                 await addTransaction({
-                    description: `Shopping: ${list.name}`,
+                    description: `Purchase: ${list.name}`,
                     amount: totalActual,
                     type: 'expense',
                     category: 'Shopping', // Default, could be linked to budget
@@ -371,7 +371,7 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
                 await updateShoppingList(list.id, { status: 'completed' });
                 onBack();
             } catch (error) {
-                console.error('Error completing shopping:', error);
+                console.error('Error completing purchase:', error);
             }
         }
     };
@@ -408,7 +408,7 @@ export const ShoppingListDetailView: React.FC<ShoppingListDetailViewProps> = ({
                         variant={shoppingMode ? 'primary' : 'secondary'}
                         onClick={() => setShoppingMode(!shoppingMode)}
                     >
-                        {shoppingMode ? 'Edit List' : 'Start Shopping'}
+                        {shoppingMode ? 'Edit List' : 'Purchase Mode'}
                     </Button>
                     {shoppingMode && (
                         <Button onClick={handleCompleteShopping} className="bg-success hover:bg-success-dark text-white">

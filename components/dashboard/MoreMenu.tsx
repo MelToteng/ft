@@ -9,7 +9,7 @@ interface MoreMenuProps {
     onViewAllTransactions: () => void;
     isInsightLoading?: boolean;
     onSignOut: () => void;
-    onShoppingLists: () => void;
+    onWishLists: () => void;
 }
 
 export const MoreMenu: React.FC<MoreMenuProps> = ({
@@ -20,7 +20,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
     onViewAllTransactions,
     isInsightLoading = false,
     onSignOut,
-    onShoppingLists,
+    onWishLists,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -68,11 +68,11 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
                         </button>
 
                         <button
-                            onClick={() => handleMenuClick(onShoppingLists)}
+                            onClick={() => handleMenuClick(onWishLists)}
                             className="w-full text-left px-4 py-3 hover:bg-surface-light transition-colors flex items-center gap-3 text-text-primary"
                         >
                             <span className="text-lg">🛒</span>
-                            <span className="font-medium">Shopping Lists</span>
+                            <span className="font-medium">Wish Lists</span>
                         </button>
 
                         <button disabled={true}

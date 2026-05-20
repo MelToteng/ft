@@ -12,7 +12,7 @@ interface HeaderProps {
   onCategories: () => void;
   onGetInsight: () => void;
   onViewAllTransactions: () => void;
-  onShoppingLists: () => void;
+  onWishLists: () => void;
   isInsightLoading?: boolean;
 }
 
@@ -23,7 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   onCategories,
   onGetInsight,
   onViewAllTransactions,
-  onShoppingLists,
+  onWishLists,
   isInsightLoading = false,
 }) => {
   const { theme, toggleTheme } = useTheme();
@@ -69,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
             onGetInsight={onGetInsight}
             onViewAllTransactions={onViewAllTransactions}
             onSignOut={onSignOut}
-            onShoppingLists={onShoppingLists}
+            onWishLists={onWishLists}
             isInsightLoading={isInsightLoading}
           />
         </div>
