@@ -31,7 +31,7 @@ A modern, full-featured personal finance application built with React, Supabase,
 
 ### 1. Clone the repository
 ```bash
-git clone <repository-url>
+git clone https://github.com/MelToteng/ft.git
 cd finance-tracker
 ```
 
